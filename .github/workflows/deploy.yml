@@ -54,6 +54,12 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/${{ secrets.SERVER_USER }}/apps
+            
+            # 💡 GitHub Secrets 환경 변수 주입 레이어 추가
+            export POSTGRES_DB="${{ secrets.DB_NAME }}"
+            export POSTGRES_USER="${{ secrets.DB_USER }}"
+            export POSTGRES_PASSWORD="${{ secrets.DB_PASSWORD }}"
+            
             docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml pull spring-app
             docker compose -f docker-compose.prod.yml up -d
