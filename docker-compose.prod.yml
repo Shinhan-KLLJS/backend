@@ -1,0 +1,43 @@
+services:
+  # 1. PostgreSQL 데이터베이스 설정 (로컬과 동일)
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: klljs-postgres
+    environment:
+      POSTGRES_DB: klljs_db
+      POSTGRES_USER: leejunheon
+      POSTGRES_PASSWORD: password123!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - klljs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leejunheon -d klljs_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Spring Boot 애플리케이션 설정 (Docker Hub 이미지 사용)
+  spring-app:
+    image: jeongheon0808/klljs-app:latest
+    container_name: klljs-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/klljs_db
+      SPRING_DATASOURCE_USERNAME: leejunheon
+      SPRING_DATASOURCE_PASSWORD: password123!
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - klljs-network
+
+volumes:
+  postgres_data:
+
+networks:
+  klljs-network:
+    driver: bridge
