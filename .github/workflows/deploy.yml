@@ -45,6 +45,16 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:latest
 
+      # 레포지토리의 배포용 컴포즈 파일을 운영 서버로 자동 전송
+      - name: Copy docker-compose.prod.yml to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "docker-compose.prod.yml" # 프로젝트 루트에 있는 파일 선택
+          target: "/home/${{ secrets.SERVER_USER }}/apps" # 서버의 목적지 폴더
+
       # 6. 운영 서버(EC2)에 SSH로 접속하여 도커 컴포즈 실행 유도
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v1.0.3
