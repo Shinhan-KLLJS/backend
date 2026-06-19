@@ -8,7 +8,9 @@ WORKDIR /apps
 # 소스 코드 전체를 복사하기 전에, build.gradle만 먼저 복사하고 빌드를 시도함.
 # 이렇게 하면 코드가 바뀌더라도 라이브러리가 추가되지 않았다면 다운로드 과정을 생략함 -> 빌드속도 향상
 COPY build.gradle settings.gradle ./
-RUN gradle build -x test --no-daemon || true
+COPY gradle ./gradle
+COPY gradlew ./
+RUN ./gradlew build -x test --no-daemon || true
 
 # 소스 코드 복사 및 실제 빌드 수행
 COPY src ./src

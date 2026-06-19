@@ -1,6 +1,5 @@
 name: Java CI/CD with Docker
 
-# main 브랜치에 push 또는 pull_request가 발생했을 때 이 워크플로우를 트리거합니다.
 on:
   push:
     branches: [ "main" ]
@@ -23,12 +22,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # 3. Gradle 빌드 권한 부여 및 빌드
+      # 3. Gradle 문법 체크 (도커 내부 컴파일의 무결성 사전 검증)
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew build -x test
+      - name: Verify Compile Stability
+        run: ./gradlew compileJava
 
       # 4. Docker Hub 로그인
       - name: Log in to Docker Hub
@@ -44,8 +43,17 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # dockerhub-계정명/레포지토리명:태그 형태로 저장
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:latest
+
+      # 레포지토리의 배포용 컴포즈 파일을 운영 서버로 자동 전송
+      - name: Copy docker-compose.prod.yml to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "docker-compose.prod.yml" # 프로젝트 루트에 있는 파일 선택
+          target: "/home/${{ secrets.SERVER_USER }}/apps" # 서버의 목적지 폴더
 
       # 6. 운영 서버(EC2)에 SSH로 접속하여 도커 컴포즈 실행 유도
       - name: Deploy to Server via SSH
@@ -56,6 +64,12 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/${{ secrets.SERVER_USER }}/apps
-            docker compose down
-            docker compose pull spring-app
-            docker compose up -d
+            
+            # 💡 GitHub Secrets 환경 변수 주입 레이어 추가
+            export POSTGRES_DB="${{ secrets.DB_NAME }}"
+            export POSTGRES_USER="${{ secrets.DB_USER }}"
+            export POSTGRES_PASSWORD="${{ secrets.DB_PASSWORD }}"
+            
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml pull spring-app
+            docker compose -f docker-compose.prod.yml up -d

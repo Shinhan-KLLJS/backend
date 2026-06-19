@@ -1,0 +1,44 @@
+services:
+  # 1. PostgreSQL 데이터베이스 서비스 설정
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: klljs-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - klljs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"] # 💡 컴포즈 내부 변수 해석 탈출을 위해 $$ 기호를 사용합니다.
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Spring Boot 애플리케이션 서비스 설정
+  spring-app:
+    image: jeongheon0808/klljs-app:latest
+    container_name: klljs-app
+    ports:
+      - "8080:8080"
+    environment:
+      # 컨테이너 가상 네트워크 이름인 postgres-db를 호스트로 타겟팅
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - klljs-network
+
+volumes:
+  postgres_data:
+
+networks:
+  klljs-network:
+    driver: bridge
