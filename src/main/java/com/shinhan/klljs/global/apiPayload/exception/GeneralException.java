@@ -1,6 +1,6 @@
 package com.shinhan.klljs.global.apiPayload.exception;
 
-import com.muffin.global.apiPayload.code.BaseErrorCode;
+import com.shinhan.klljs.global.apiPayload.code.BaseErrorCode;
 import lombok.Getter;
 
 import java.util.Objects;

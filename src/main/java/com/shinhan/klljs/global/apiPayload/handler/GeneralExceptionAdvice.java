@@ -1,9 +1,9 @@
 package com.shinhan.klljs.global.apiPayload.handler;
 
-import com.muffin.global.apiPayload.ApiResponse;
-import com.muffin.global.apiPayload.code.BaseErrorCode;
-import com.muffin.global.apiPayload.code.GeneralErrorCode;
-import com.muffin.global.apiPayload.exception.GeneralException;
+import com.shinhan.klljs.global.apiPayload.ApiResponse;
+import com.shinhan.klljs.global.apiPayload.code.BaseErrorCode;
+import com.shinhan.klljs.global.apiPayload.code.GeneralErrorCode;
+import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
