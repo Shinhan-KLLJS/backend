@@ -24,7 +24,7 @@ provider "aws" {
 
 # ------------------------------------------------------------
 # 모듈 1: VPC (네트워크 기반)
-# Public subnet (ALB), Private subnet (EC2, RDS, VPC Endpoint)
+# Public subnet (ALB, EC2), Private subnet (RDS 전용)
 # ------------------------------------------------------------
 module "vpc" {
   source = "./modules/vpc"
@@ -35,16 +35,13 @@ module "vpc" {
 }
 
 # ------------------------------------------------------------
-# 모듈 2: SQS + VPC Endpoint
-# 로컬 Vision → SQS (인터넷), EC2 → SQS (VPC Endpoint 경유)
+# 모듈 2: SQS
+# 로컬 Vision, EC2 모두 인터넷을 통해 직접 접근
 # ------------------------------------------------------------
 module "sqs" {
   source = "./modules/sqs"
 
-  project_name       = var.project_name
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  ec2_security_group_id = module.ec2.security_group_id
+  project_name = var.project_name
 }
 
 # ------------------------------------------------------------
@@ -75,15 +72,14 @@ module "route53" {
 
 # ------------------------------------------------------------
 # 모듈 4: EC2 (Spring Boot)
-# Private subnet에 위치, ALB Target Group에 등록
+# Public subnet에 위치(보안그룹으로 ALB 외 인바운드 차단), ALB Target Group에 등록
 # ------------------------------------------------------------
 module "ec2" {
   source = "./modules/ec2"
 
-  project_name       = var.project_name
-  aws_region         = var.aws_region
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
+  project_name      = var.project_name
+  vpc_id            = module.vpc.vpc_id
+  public_subnet_ids = module.vpc.public_subnet_ids
   alb_security_group_id = module.alb.security_group_id
   target_group_arn   = module.alb.target_group_arn
   instance_type      = var.ec2_instance_type

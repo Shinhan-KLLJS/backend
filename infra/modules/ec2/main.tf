@@ -1,7 +1,8 @@
 # ============================================================
 # modules/ec2/main.tf
-# EC2: private subnet, ALB에서만 접근, SQS 폴링
-# 배포: SSH 불가 → SSM Run Command로 Docker 컨테이너 배포
+# EC2: public subnet에 위치하지만, 보안그룹으로 ALB 외 인바운드 전면 차단
+# (인스턴스 1대뿐이라 NAT/VPC Endpoint 대신 IGW를 직접 쓰고 비용 절감)
+# 배포: SSH 인바운드 없음 → SSM Run Command로 Docker 컨테이너 배포
 # ============================================================
 
 # ──────────────── EC2 Security Group ────────────────
@@ -10,7 +11,7 @@ resource "aws_security_group" "ec2" {
   description = "EC2 Spring Boot - Allow inbound from ALB only"
   vpc_id      = var.vpc_id
 
-  # ALB에서 오는 트래픽만 허용 (직접 접근 차단)
+  # ALB에서 오는 트래픽만 허용 (SSH 포함 그 외 인바운드 전부 차단, public subnet이어도 직접 접근 불가)
   ingress {
     description     = "Spring Boot from ALB only"
     from_port       = 8080
@@ -19,7 +20,7 @@ resource "aws_security_group" "ec2" {
     security_groups = [var.alb_security_group_id]
   }
 
-  # 외부로 나가는 트래픽 (RDS, SQS Endpoint 통신에 필요)
+  # 외부로 나가는 트래픽 (RDS, SQS, Docker Hub, SSM 통신에 필요)
   egress {
     description = "All outbound"
     from_port   = 0
@@ -107,69 +108,6 @@ resource "aws_iam_instance_profile" "ec2" {
   role = aws_iam_role.ec2.name
 }
 
-# ──────────────── SSM VPC Endpoint (private subnet → SSM 서비스) ────────────────
-# NAT Gateway가 없으므로 SSM 에이전트가 인터넷 대신 이 Endpoint로 통신
-resource "aws_security_group" "ssm_endpoint" {
-  name        = "${var.project_name}-ssm-endpoint-sg"
-  description = "SSM VPC Endpoints - Allow HTTPS from EC2"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description     = "HTTPS from EC2"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ec2.id]
-  }
-
-  tags = {
-    Name    = "${var.project_name}-ssm-endpoint-sg"
-    Project = var.project_name
-  }
-}
-
-resource "aws_vpc_endpoint" "ssm" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.ssm"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = var.private_subnet_ids
-  security_group_ids  = [aws_security_group.ssm_endpoint.id]
-  private_dns_enabled = true
-
-  tags = {
-    Name    = "${var.project_name}-ssm-endpoint"
-    Project = var.project_name
-  }
-}
-
-resource "aws_vpc_endpoint" "ssmmessages" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = var.private_subnet_ids
-  security_group_ids  = [aws_security_group.ssm_endpoint.id]
-  private_dns_enabled = true
-
-  tags = {
-    Name    = "${var.project_name}-ssmmessages-endpoint"
-    Project = var.project_name
-  }
-}
-
-resource "aws_vpc_endpoint" "ec2messages" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = var.private_subnet_ids
-  security_group_ids  = [aws_security_group.ssm_endpoint.id]
-  private_dns_enabled = true
-
-  tags = {
-    Name    = "${var.project_name}-ec2messages-endpoint"
-    Project = var.project_name
-  }
-}
-
 # ──────────────── 최신 Amazon Linux 2023 AMI 자동 조회 ────────────────
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -190,7 +128,7 @@ data "aws_ami" "amazon_linux" {
 resource "aws_instance" "spring" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
-  subnet_id              = var.private_subnet_ids[0]  # private subnet
+  subnet_id              = var.public_subnet_ids[0]  # public subnet (map_public_ip_on_launch로 퍼블릭 IP 자동 할당)
   vpc_security_group_ids = [aws_security_group.ec2.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2.name
   key_name               = var.key_name

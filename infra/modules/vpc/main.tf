@@ -6,7 +6,7 @@
 # ──────────────── VPC ────────────────
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true   # VPC Endpoint DNS 해석에 필요
+  enable_dns_hostnames = true   # RDS 등 VPC 내부 DNS 해석에 필요
   enable_dns_support   = true
 
   tags = {
@@ -44,7 +44,7 @@ resource "aws_subnet" "public" {
   }
 }
 
-# ──────────────── Private Subnet (EC2, RDS, VPC Endpoint) ────────────────
+# ──────────────── Private Subnet (RDS 전용) ────────────────
 resource "aws_subnet" "private" {
   count             = length(var.availability_zones)
   vpc_id            = aws_vpc.main.id
@@ -82,8 +82,7 @@ resource "aws_route_table_association" "public" {
 }
 
 # ──────────────── 라우팅 테이블 (Private) ────────────────
-# Private subnet은 기본적으로 인터넷 경로 없음
-# VPC Endpoint를 통해 SQS에 접근하므로 NAT Gateway 불필요
+# RDS는 인터넷 경로가 필요 없으므로 NAT Gateway 없이 격리만 유지
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 

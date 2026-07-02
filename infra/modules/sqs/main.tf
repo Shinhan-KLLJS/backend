@@ -1,8 +1,7 @@
 # ============================================================
 # modules/sqs/main.tf
-# SQS 큐 + VPC Interface Endpoint
-# - 로컬 Vision → SQS: 인터넷 직접 접근 (boto3 + IAM 키)
-# - EC2 → SQS: VPC Endpoint 경유 (내부 AWS 백본망)
+# SQS 큐
+# - 로컬 Vision, EC2 모두 인터넷을 통해 직접 접근 (EC2가 public subnet에 있음)
 # ============================================================
 
 # ──────────────── Dead Letter Queue (실패 메시지 보관) ────────────────
@@ -71,47 +70,4 @@ resource "aws_sqs_queue_policy" "main" {
       }
     ]
   })
-}
-
-# ──────────────── VPC Endpoint Security Group ────────────────
-# EC2에서 Endpoint로 HTTPS(443) 접근 허용
-resource "aws_security_group" "vpc_endpoint" {
-  name        = "${var.project_name}-vpc-endpoint-sg"
-  description = "VPC Endpoint - Allow HTTPS from EC2"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description     = "HTTPS from EC2"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [var.ec2_security_group_id]
-  }
-
-  tags = {
-    Name    = "${var.project_name}-vpc-endpoint-sg"
-    Project = var.project_name
-  }
-}
-
-# ──────────────── SQS VPC Interface Endpoint ────────────────
-# EC2(private subnet) → SQS를 인터넷 없이 AWS 내부망으로 연결
-resource "aws_vpc_endpoint" "sqs" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.ap-northeast-2.sqs"
-  vpc_endpoint_type   = "Interface"
-
-  # EC2가 있는 private subnet에 ENI 생성
-  subnet_ids          = var.private_subnet_ids
-  security_group_ids  = [aws_security_group.vpc_endpoint.id]
-
-  # 이 설정이 핵심:
-  # EC2에서 sqs.ap-northeast-2.amazonaws.com 호출 시
-  # 자동으로 Endpoint로 라우팅됨 (코드 변경 불필요)
-  private_dns_enabled = true
-
-  tags = {
-    Name    = "${var.project_name}-sqs-endpoint"
-    Project = var.project_name
-  }
 }
