@@ -81,6 +81,7 @@ module "ec2" {
   source = "./modules/ec2"
 
   project_name       = var.project_name
+  aws_region         = var.aws_region
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnet_ids
   alb_security_group_id = module.alb.security_group_id
@@ -104,4 +105,17 @@ module "rds" {
   db_username           = var.db_username
   db_password           = var.db_password
   db_instance_class     = var.db_instance_class
+}
+
+# ------------------------------------------------------------
+# 모듈 6: SSM Parameter Store
+# EC2가 배포 시 SSM Run Command로 조회할 DB 접속정보 저장
+# ------------------------------------------------------------
+module "ssm_params" {
+  source = "./modules/ssm_params"
+
+  project_name = var.project_name
+  db_url       = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
+  db_username  = var.db_username
+  db_password  = var.db_password
 }

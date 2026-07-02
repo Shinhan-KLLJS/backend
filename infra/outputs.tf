@@ -33,6 +33,18 @@ output "api_domain" {
   value       = module.route53.fqdn
 }
 
+# ──────────── CD 배포용 IAM 자격증명 (GitHub Secrets에 등록) ────────────
+output "cd_deploy_access_key_id" {
+  description = "GitHub Secrets의 AWS_ACCESS_KEY_ID에 등록"
+  value       = aws_iam_access_key.cd_deploy.id
+}
+
+output "cd_deploy_secret_access_key" {
+  description = "GitHub Secrets의 AWS_SECRET_ACCESS_KEY에 등록 (terraform output -raw cd_deploy_secret_access_key로 확인)"
+  value       = aws_iam_access_key.cd_deploy.secret
+  sensitive   = true
+}
+
 # ──────────── 적용 후 해야 할 일 안내 ────────────
 output "next_steps" {
   description = "terraform apply 완료 후 설정 가이드"

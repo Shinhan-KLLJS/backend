@@ -1,6 +1,7 @@
 # ============================================================
 # modules/ec2/main.tf
 # EC2: private subnet, ALB에서만 접근, SQS 폴링
+# 배포: SSH 불가 → SSM Run Command로 Docker 컨테이너 배포
 # ============================================================
 
 # ──────────────── EC2 Security Group ────────────────
@@ -73,9 +74,100 @@ resource "aws_iam_role_policy_attachment" "ec2_cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+# SSM Run Command로 배포 명령을 받기 위한 권한 (private subnet, SSH 불가)
+resource "aws_iam_role_policy_attachment" "ec2_ssm" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# 배포 스크립트가 Parameter Store에서 DB 접속정보를 읽어올 권한
+resource "aws_iam_role_policy" "ec2_ssm_params" {
+  name = "${var.project_name}-ec2-ssm-params-policy"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters"]
+        Resource = "arn:aws:ssm:*:*:parameter/${var.project_name}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project_name}-ec2-profile"
   role = aws_iam_role.ec2.name
+}
+
+# ──────────────── SSM VPC Endpoint (private subnet → SSM 서비스) ────────────────
+# NAT Gateway가 없으므로 SSM 에이전트가 인터넷 대신 이 Endpoint로 통신
+resource "aws_security_group" "ssm_endpoint" {
+  name        = "${var.project_name}-ssm-endpoint-sg"
+  description = "SSM VPC Endpoints - Allow HTTPS from EC2"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "HTTPS from EC2"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ec2.id]
+  }
+
+  tags = {
+    Name    = "${var.project_name}-ssm-endpoint-sg"
+    Project = var.project_name
+  }
+}
+
+resource "aws_vpc_endpoint" "ssm" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.ssm"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = var.private_subnet_ids
+  security_group_ids  = [aws_security_group.ssm_endpoint.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name    = "${var.project_name}-ssm-endpoint"
+    Project = var.project_name
+  }
+}
+
+resource "aws_vpc_endpoint" "ssmmessages" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = var.private_subnet_ids
+  security_group_ids  = [aws_security_group.ssm_endpoint.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name    = "${var.project_name}-ssmmessages-endpoint"
+    Project = var.project_name
+  }
+}
+
+resource "aws_vpc_endpoint" "ec2messages" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = var.private_subnet_ids
+  security_group_ids  = [aws_security_group.ssm_endpoint.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name    = "${var.project_name}-ec2messages-endpoint"
+    Project = var.project_name
+  }
 }
 
 # ──────────────── 최신 Amazon Linux 2023 AMI 자동 조회 ────────────────
@@ -103,38 +195,17 @@ resource "aws_instance" "spring" {
   iam_instance_profile   = aws_iam_instance_profile.ec2.name
   key_name               = var.key_name
 
-  # Spring Boot 초기 설치 스크립트
+  # user_data는 실행 중인 인스턴스에 반영 불가(cloud-init은 최초 부팅에만 실행)
+  # → 변경 시 반드시 재생성되도록 강제
+  user_data_replace_on_change = true
+
+  # Docker 설치 (컨테이너 배포는 CI/CD에서 SSM Run Command로 수행)
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    # Java 21 설치
-    dnf install -y java-21-amazon-corretto
-
-    # 앱 디렉토리 생성
-    mkdir -p /app/config
-
-    # Spring Boot JAR 배포 위치
-    # 실제 배포 시 GitHub Actions 또는 S3에서 jar를 가져옴
-    echo "EC2 초기화 완료. Spring Boot JAR를 /app/app.jar 에 배치하세요." > /var/log/init.log
-
-    # systemd 서비스 등록 (Spring Boot 자동 시작)
-    cat > /etc/systemd/system/spring-boot.service << 'SERVICE'
-    [Unit]
-    Description=Spring Boot Vision App
-    After=network.target
-
-    [Service]
-    Type=simple
-    User=ec2-user
-    ExecStart=/usr/bin/java -jar /app/app.jar --spring.config.location=/app/config/application.yml
-    Restart=always
-    RestartSec=10
-
-    [Install]
-    WantedBy=multi-user.target
-    SERVICE
-
-    systemctl daemon-reload
-    systemctl enable spring-boot
+    dnf install -y docker
+    systemctl enable docker
+    systemctl start docker
+    usermod -aG docker ec2-user
   EOF
   )
 
