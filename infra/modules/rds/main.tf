@@ -87,7 +87,7 @@ resource "aws_db_instance" "main" {
   parameter_group_name = aws_db_parameter_group.mysql.name
 
   # 백업
-  backup_retention_period = 7     # 7일 백업 보관
+  backup_retention_period = 1     # 프리티어 계정은 7일 불가 (FreeTierRestrictionError) → 1일로 제한
   backup_window           = "03:00-04:00"   # 새벽 3시 백업 (KST 12:00)
   maintenance_window      = "Mon:04:00-Mon:05:00"
 
