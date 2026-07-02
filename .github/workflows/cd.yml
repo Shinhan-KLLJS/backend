@@ -3,6 +3,7 @@ name: CD
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch: # Actions 탭에서 브랜치 선택 후 수동 실행 (dev 테스트용)
 
 jobs:
   build-and-push:
