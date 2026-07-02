@@ -1,15 +1,19 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.h2.Driver
+    # 인메모리 DB이므로 Docker/DB 서버 없이 바로 실행 가능
+    # MODE=MySQL: RDS(MySQL)와 SQL 문법을 최대한 유사하게 맞춤
+    url: jdbc:h2:mem:klljsdb;MODE=MySQL
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
-
-logging:
-  level:
-    org.hibernate.SQL: debug
-    org.hibernate.orm.jdbc.bind: trace
+    properties:
+      hibernate:
+        format_sql: true
