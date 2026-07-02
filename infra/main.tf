@@ -54,9 +54,23 @@ module "sqs" {
 module "alb" {
   source = "./modules/alb"
 
-  project_name      = var.project_name
-  vpc_id            = module.vpc.vpc_id
-  public_subnet_ids = module.vpc.public_subnet_ids
+  project_name        = var.project_name
+  vpc_id              = module.vpc.vpc_id
+  public_subnet_ids   = module.vpc.public_subnet_ids
+  acm_certificate_arn = var.acm_certificate_arn
+}
+
+# ------------------------------------------------------------
+# 모듈 3-1: Route53 (도메인 → ALB 연결)
+# 가비아에서 구매한 도메인의 네임서버가 이 Route53 호스팅 영역으로 위임된 상태
+# ------------------------------------------------------------
+module "route53" {
+  source = "./modules/route53"
+
+  root_domain  = var.root_domain
+  record_name  = var.domain_name
+  alb_dns_name = module.alb.dns_name
+  alb_zone_id  = module.alb.zone_id
 }
 
 # ------------------------------------------------------------

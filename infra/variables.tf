@@ -28,6 +28,24 @@ variable "availability_zones" {
   default     = ["ap-northeast-2a", "ap-northeast-2c"]
 }
 
+# ──────────────── 도메인 / ACM ────────────────
+variable "domain_name" {
+  description = "ALB에 연결할 전체 도메인 (예: api.loovi.my)"
+  type        = string
+  default     = "api.loovi.my"
+}
+
+variable "root_domain" {
+  description = "Route53 호스팅 영역의 루트 도메인 (예: loovi.my)"
+  type        = string
+  default     = "loovi.my"
+}
+
+variable "acm_certificate_arn" {
+  description = "ALB HTTPS 리스너용 ACM 인증서 ARN (ALB와 같은 리전 ap-northeast-2에서 발급된 것)"
+  type        = string
+}
+
 # ──────────────── EC2 ────────────────
 variable "ec2_instance_type" {
   description = "EC2 인스턴스 타입"

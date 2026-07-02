@@ -75,32 +75,34 @@ resource "aws_lb_target_group" "ec2" {
   }
 }
 
-# ──────────────── HTTP 리스너 (도메인 없을 때 기본 사용) ────────────────
-# 도메인 + HTTPS 설정 후에는 위 HTTPS 리스너 주석 해제하고 이 블록 삭제
+# ──────────────── HTTP 리스너 (443으로 리다이렉트) ────────────────
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.ec2.arn
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
 # ──────────────── HTTPS 리스너 ────────────────
-# 도메인 + ACM 인증서 발급 후 아래 주석 해제
-# certificate_arn = ACM에서 발급한 인증서 ARN 입력
-#
-# resource "aws_lb_listener" "https" {
-#   load_balancer_arn = aws_lb.main.arn
-#   port              = 443
-#   protocol          = "HTTPS"
-#   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-#   certificate_arn   = "arn:aws:acm:ap-northeast-2:123456789:certificate/xxx"
-#
-#   default_action {
-#     type             = "forward"
-#     target_group_arn = aws_lb_target_group.ec2.arn
-#   }
-# }
+# 인증서는 ALB와 같은 리전(ap-northeast-2)에서 발급된 ACM 인증서여야 함
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ec2.arn
+  }
+}

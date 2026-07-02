@@ -28,6 +28,11 @@ output "vpc_id" {
   value       = module.vpc.vpc_id
 }
 
+output "api_domain" {
+  description = "API 접근용 커스텀 도메인"
+  value       = module.route53.fqdn
+}
+
 # ──────────── 적용 후 해야 할 일 안내 ────────────
 output "next_steps" {
   description = "terraform apply 완료 후 설정 가이드"
@@ -43,9 +48,9 @@ output "next_steps" {
     "   AWS_DEFAULT_REGION=ap-northeast-2",
     "",
     "3. API 접근 주소:",
-    "   http://${module.alb.dns_name}/api/...",
+    "   https://${module.route53.fqdn}/api/...",
     "",
     "4. Vercel 환경변수:",
-    "   NEXT_PUBLIC_API_URL=https://${module.alb.dns_name}",
+    "   NEXT_PUBLIC_API_URL=https://${module.route53.fqdn}",
   ])
 }
