@@ -35,7 +35,7 @@ resource "aws_sqs_queue" "main" {
 }
 
 # ──────────────── SQS 접근 정책 ────────────────
-# 로컬 머신(boto3)과 EC2(VPC Endpoint) 모두 허용
+# 발행(로컬 Vision AI 담당자)과 수신(EC2)을 각각 특정 IAM 주체로 제한
 resource "aws_sqs_queue_policy" "main" {
   queue_url = aws_sqs_queue.main.id
 
@@ -43,24 +43,18 @@ resource "aws_sqs_queue_policy" "main" {
     Version = "2012-10-17"
     Statement = [
       {
-        # 로컬 Vision 머신에서 메시지 전송 허용
-        Sid    = "AllowLocalVisionPublish"
-        Effect = "Allow"
-        Principal = { AWS = "*" }
+        # 로컬 Vision(AI 담당자) 머신에서 메시지 전송 허용
+        Sid       = "AllowLocalVisionPublish"
+        Effect    = "Allow"
+        Principal = { AWS = var.producer_principal_arn }
         Action    = "sqs:SendMessage"
         Resource  = aws_sqs_queue.main.arn
-        Condition = {
-          # 실제 배포 시 로컬 IAM User ARN으로 제한 권장
-          StringEquals = {
-            "aws:RequestedRegion" = "ap-northeast-2"
-          }
-        }
       },
       {
         # EC2에서 메시지 수신/삭제 허용
-        Sid    = "AllowEC2Consume"
-        Effect = "Allow"
-        Principal = { AWS = "*" }
+        Sid       = "AllowEC2Consume"
+        Effect    = "Allow"
+        Principal = { AWS = var.consumer_principal_arn }
         Action = [
           "sqs:ReceiveMessage",
           "sqs:DeleteMessage",

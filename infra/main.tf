@@ -41,7 +41,9 @@ module "vpc" {
 module "sqs" {
   source = "./modules/sqs"
 
-  project_name = var.project_name
+  project_name           = var.project_name
+  producer_principal_arn = aws_iam_user.ai_producer.arn
+  consumer_principal_arn = module.ec2.role_arn
 }
 
 # ------------------------------------------------------------

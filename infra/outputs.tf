@@ -45,6 +45,23 @@ output "cd_deploy_secret_access_key" {
   sensitive   = true
 }
 
+# ──────────── AI 담당자(로컬 Vision) SQS 발행용 IAM 자격증명 ────────────
+output "ai_producer_access_key_id" {
+  description = "AI 담당자 aws configure 시 Access Key ID"
+  value       = aws_iam_access_key.ai_producer.id
+}
+
+output "ai_producer_secret_access_key" {
+  description = "AI 담당자 aws configure 시 Secret Access Key (terraform output -raw ai_producer_secret_access_key로 확인)"
+  value       = aws_iam_access_key.ai_producer.secret
+  sensitive   = true
+}
+
+output "sqs_queue_url_for_ai" {
+  description = "AI 담당자 코드에 넣을 SQS_QUEUE_URL 값"
+  value       = module.sqs.queue_url
+}
+
 # ──────────── 적용 후 해야 할 일 안내 ────────────
 output "next_steps" {
   description = "terraform apply 완료 후 설정 가이드"
