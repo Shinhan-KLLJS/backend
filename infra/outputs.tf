@@ -62,6 +62,11 @@ output "sqs_queue_url_for_ai" {
   value       = module.sqs.queue_url
 }
 
+output "s3_bucket_name" {
+  description = "이미지/파일 업로드용 S3 버킷 이름"
+  value       = module.s3.bucket_name
+}
+
 # ──────────── 적용 후 해야 할 일 안내 ────────────
 output "next_steps" {
   description = "terraform apply 완료 후 설정 가이드"

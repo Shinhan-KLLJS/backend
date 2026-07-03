@@ -103,6 +103,28 @@ resource "aws_iam_role_policy" "ec2_ssm_params" {
   })
 }
 
+# 업로드된 이미지/파일 조회·저장 권한 (S3)
+resource "aws_iam_role_policy" "ec2_s3" {
+  name = "${var.project_name}-ec2-s3-policy"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject"]
+        Resource = "${var.s3_bucket_arn}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = var.s3_bucket_arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project_name}-ec2-profile"
   role = aws_iam_role.ec2.name
