@@ -51,6 +51,7 @@ CREATE TABLE team_invite_links (
     revoked_at         DATETIME(3)     NULL,
     created_at         DATETIME(3)     NOT NULL,
     CONSTRAINT uk_invite_token_hash UNIQUE (token_hash),
+    CONSTRAINT chk_invite_used_count_within_max CHECK (used_count <= max_uses),
     CONSTRAINT fk_invite_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE RESTRICT,
     CONSTRAINT fk_invite_created_by FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;

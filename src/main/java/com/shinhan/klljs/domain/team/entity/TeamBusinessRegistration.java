@@ -94,5 +94,6 @@ public class TeamBusinessRegistration extends BaseTimeEntity {
     public void reject(String rejectionReason) {
         this.verificationStatus = VerificationStatus.REJECTED;
         this.rejectionReason = rejectionReason;
+        this.verifiedAt = null;
     }
 }

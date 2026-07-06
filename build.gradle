@@ -39,8 +39,9 @@ dependencies {
 	runtimeOnly 'com.h2database:h2'
 
 	// prod 전용 스키마 마이그레이션 (local은 Hibernate ddl-auto=create-drop 그대로 사용)
-	implementation 'org.flywaydb:flyway-core'
-	implementation 'org.flywaydb:flyway-mysql'
+	// Flyway API를 직접 호출하지 않고 Spring Boot 자동설정으로만 동작하므로 runtimeOnly로 충분
+	runtimeOnly 'org.flywaydb:flyway-core'
+	runtimeOnly 'org.flywaydb:flyway-mysql'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

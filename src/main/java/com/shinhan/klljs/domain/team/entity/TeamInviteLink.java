@@ -71,6 +71,9 @@ public class TeamInviteLink {
     @Builder
     public TeamInviteLink(Team team, User createdBy, byte[] tokenHash, TeamMemberRole defaultRole,
                            Integer maxUses, LocalDateTime expiresAt) {
+        if (defaultRole == TeamMemberRole.OWNER) {
+            throw new IllegalArgumentException("defaultRole must not be OWNER");
+        }
         this.team = team;
         this.createdBy = createdBy;
         this.tokenHash = tokenHash;
@@ -85,7 +88,10 @@ public class TeamInviteLink {
     }
 
     /** 호출 전 반드시 SELECT ... FOR UPDATE로 이 행을 잠근 상태여야 한다. */
-    public void consumeOneUse() {
+    public void consumeOneUse(LocalDateTime now) {
+        if (!isUsable(now)) {
+            throw new IllegalStateException("TeamInviteLink is not usable: id=" + id);
+        }
         this.usedCount += 1;
     }
 
