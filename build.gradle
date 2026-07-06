@@ -38,6 +38,10 @@ dependencies {
 	// local: 인메모리 H2 (Docker/DB 서버 없이 테스트)
 	runtimeOnly 'com.h2database:h2'
 
+	// prod 전용 스키마 마이그레이션 (local은 Hibernate ddl-auto=create-drop 그대로 사용)
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 

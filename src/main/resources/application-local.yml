@@ -1,4 +1,7 @@
 spring:
+  flyway:
+    enabled: false # 로컬은 Hibernate ddl-auto=create-drop으로 스키마 자동 생성, Flyway는 prod 전용
+
   datasource:
     driver-class-name: org.h2.Driver
     # 인메모리 DB이므로 Docker/DB 서버 없이 바로 실행 가능

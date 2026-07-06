@@ -1,7 +1,10 @@
 spring:
+  flyway:
+    enabled: true # db/migration의 SQL로 스키마 관리 (Hibernate는 검증만 함)
+
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # docker-compose.prod.yml / 배포 환경에서 RDS 접속 정보를 환경변수로 주입
+    # 배포 환경(SSM Run Command)에서 RDS 접속 정보를 환경변수로 주입
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
