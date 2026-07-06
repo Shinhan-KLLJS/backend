@@ -126,7 +126,6 @@ erDiagram
         bigint media_unit_id FK
         bigint created_by_user_id FK
         varchar campaign_name
-        varchar brand_name
         date execution_start_date
         date execution_end_date
         int daily_target_play_count
@@ -364,7 +363,6 @@ MVP에서는 캠페인과 광고 소재를 한 테이블에서 관리한다.
 | `media_unit_id` | `BIGINT UNSIGNED` | X | 선택한 매체, 선택 전에는 `NULL` |
 | `created_by_user_id` | `BIGINT UNSIGNED` | O | 등록 사용자 |
 | `campaign_name` | `VARCHAR(200)` | O | 캠페인명 |
-| `brand_name` | `VARCHAR(200)` | O | 브랜드명 |
 | `execution_start_date` | `DATE` | O | 집행 시작 일자 |
 | `execution_end_date` | `DATE` | O | 집행 종료 일자 |
 | `daily_target_play_count` | `INT UNSIGNED` | O | 하루 목표 광고 실행 횟수 |

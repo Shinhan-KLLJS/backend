@@ -120,7 +120,6 @@ CREATE TABLE campaigns (
     media_unit_id               BIGINT UNSIGNED NULL,
     created_by_user_id          BIGINT UNSIGNED NOT NULL,
     campaign_name               VARCHAR(200)    NOT NULL,
-    brand_name                  VARCHAR(200)    NOT NULL,
     execution_start_date        DATE            NOT NULL,
     execution_end_date          DATE            NOT NULL,
     daily_target_play_count     INT UNSIGNED    NOT NULL,

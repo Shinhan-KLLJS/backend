@@ -47,9 +47,6 @@ public class Campaign extends BaseTimeEntity {
     @Column(name = "campaign_name", nullable = false, length = 200)
     private String campaignName;
 
-//    @Column(name = "brand_name", nullable = false, length = 200)
-//    private String brandName;
-
     @Column(name = "execution_start_date", nullable = false)
     private LocalDate executionStartDate;
 
