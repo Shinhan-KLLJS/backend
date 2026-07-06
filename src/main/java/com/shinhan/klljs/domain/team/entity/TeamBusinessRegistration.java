@@ -48,6 +48,12 @@ public class TeamBusinessRegistration extends BaseTimeEntity {
     @Column(name = "representative_name", length = 100)
     private String representativeName;
 
+    @Column(name = "business_type", length = 100)
+    private String businessType; // 업태
+
+    @Column(name = "business_address", length = 500)
+    private String businessAddress; // 사업장 소재지
+
     @Column(name = "document_storage_key", nullable = false, length = 1024)
     private String documentStorageKey;
 
@@ -63,22 +69,26 @@ public class TeamBusinessRegistration extends BaseTimeEntity {
 
     @Builder
     public TeamBusinessRegistration(Team team, User uploadedBy, String businessNumber, String companyName,
-                                     String representativeName, String documentStorageKey,
-                                     VerificationStatus verificationStatus) {
+                                     String representativeName, String businessType, String businessAddress,
+                                     String documentStorageKey, VerificationStatus verificationStatus) {
         this.team = team;
         this.uploadedBy = uploadedBy;
         this.businessNumber = businessNumber;
         this.companyName = companyName;
         this.representativeName = representativeName;
+        this.businessType = businessType;
+        this.businessAddress = businessAddress;
         this.documentStorageKey = documentStorageKey;
         this.verificationStatus = verificationStatus;
     }
 
     public void resubmit(String businessNumber, String companyName, String representativeName,
-                          String documentStorageKey) {
+                          String businessType, String businessAddress, String documentStorageKey) {
         this.businessNumber = businessNumber;
         this.companyName = companyName;
         this.representativeName = representativeName;
+        this.businessType = businessType;
+        this.businessAddress = businessAddress;
         this.documentStorageKey = documentStorageKey;
         this.verificationStatus = VerificationStatus.PENDING;
         this.rejectionReason = null;

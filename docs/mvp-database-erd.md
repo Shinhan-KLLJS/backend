@@ -6,7 +6,7 @@
 
 - 사용자는 카카오 소셜 로그인으로 가입한다.
 - 팀장은 팀과 사업자등록증을 등록한다.
-- 팀장은 초대 URL을 생성하고 팀원을 초대한다.
+- 팀장(또는 어드민)은 초대 코드를 생성하고 팀원을 초대한다.
 - 팀원은 자신이 속한 팀의 캠페인과 대시보드를 조회한다.
 - 캠페인 하나는 하나의 매체에만 배정한다.
 - 하나의 매체는 기간이 겹치지 않는 여러 캠페인에서 재사용할 수 있다.
@@ -21,7 +21,7 @@
 3. MVP에서는 `AD_PLACEMENTS`와 `VISION_DEVICES` 테이블을 사용하지 않는다.
 4. Vision 데이터에는 수신 시점에 결정한 `campaign_id`를 저장해 과거 귀속 관계를 보존한다.
 5. 사업자등록증은 공개 URL 대신 비공개 오브젝트 스토리지 키를 저장한다.
-6. 초대 URL의 원본 토큰은 저장하지 않고 SHA-256 해시만 저장한다.
+6. 초대 코드의 원본 값은 저장하지 않고 SHA-256 해시만 저장하며, 팀당 폐기되지 않은 코드는 항상 1개만 존재한다.
 7. 팀당 활성 `OWNER`는 애플리케이션 검증만이 아니라 DB 유니크 인덱스로 강제한다.
 8. 하드 삭제는 사용하지 않는다. 모든 테이블은 `status` 컬럼으로 소프트 삭제/비활성화한다.
 
@@ -38,7 +38,7 @@ erDiagram
     TEAMS ||--o| TEAM_BUSINESS_REGISTRATIONS : "사업자등록증을 가진다"
     USERS ||--o{ TEAM_BUSINESS_REGISTRATIONS : "등록한다"
 
-    TEAMS ||--o{ TEAM_INVITE_LINKS : "초대 링크를 발급한다"
+    TEAMS ||--o{ TEAM_INVITE_LINKS : "초대 코드를 발급한다"
     USERS ||--o{ TEAM_INVITE_LINKS : "생성한다"
     TEAM_INVITE_LINKS o|--o{ TEAM_MEMBERS : "가입 경로가 된다"
 
@@ -90,6 +90,8 @@ erDiagram
         varchar business_number
         varchar company_name
         varchar representative_name
+        varchar business_type
+        varchar business_address
         varchar document_storage_key
         varchar verification_status
     }
@@ -99,7 +101,6 @@ erDiagram
         bigint team_id FK
         bigint created_by_user_id FK
         binary token_hash UK
-        varchar default_role
         int max_uses
         int used_count
         datetime expires_at
@@ -126,6 +127,7 @@ erDiagram
         bigint media_unit_id FK
         bigint created_by_user_id FK
         varchar campaign_name
+        varchar brand_name
         date execution_start_date
         date execution_end_date
         int daily_target_play_count
@@ -223,7 +225,7 @@ team_members.status = ACTIVE
 | `id` | `BIGINT UNSIGNED` | O | PK |
 | `team_id` | `BIGINT UNSIGNED` | O | 소속 팀 |
 | `user_id` | `BIGINT UNSIGNED` | O | 소속 사용자 |
-| `joined_via_invite_id` | `BIGINT UNSIGNED` | X | 사용한 초대 링크, 팀장은 `NULL` |
+| `joined_via_invite_id` | `BIGINT UNSIGNED` | X | 사용한 초대 코드, 팀장은 `NULL` |
 | `role` | `VARCHAR(20)` | O | `OWNER`, `ADMIN`, `MEMBER` |
 | `status` | `VARCHAR(20)` | O | `ACTIVE`, `LEFT`, `REMOVED` |
 | `joined_at` | `DATETIME(3)` | O | 가입 시각 |
@@ -282,6 +284,8 @@ CREATE UNIQUE INDEX ux_team_members_one_active_owner ON team_members(active_owne
 | `business_number` | `VARCHAR(20)` | X | 하이픈을 제거한 사업자번호 권장 |
 | `company_name` | `VARCHAR(200)` | X | 사업자명 |
 | `representative_name` | `VARCHAR(100)` | X | 대표자명 |
+| `business_type` | `VARCHAR(100)` | X | 업태 |
+| `business_address` | `VARCHAR(500)` | X | 사업장 소재지 |
 | `document_storage_key` | `VARCHAR(1024)` | O | 비공개 스토리지 객체 키 |
 | `verification_status` | `VARCHAR(20)` | O | `PENDING`, `APPROVED`, `REJECTED` |
 | `rejection_reason` | `VARCHAR(1000)` | X | 반려 사유 |
@@ -294,36 +298,45 @@ CREATE UNIQUE INDEX ux_team_members_one_active_owner ON team_members(active_owne
 
 ## 6. 팀 초대
 
+오너/어드민이 발급한 **초대 코드를 사용자가 직접 입력**하는 방식이다 (URL 클릭이 아님). 코드로 합류하면 승인 절차 없이 즉시 **MEMBER**로 합류하며, ADMIN 승격은 합류 후 팀원 관리 화면(7절 아님, 팀원 관리)에서 별도로 처리한다 — 초대 코드 자체에는 역할 선택 기능이 없다.
+
 ### `team_invite_links`
 
 | 컬럼 | MySQL 타입 | 필수 | 설명 |
 |---|---|---:|---|
 | `id` | `BIGINT UNSIGNED` | O | PK |
 | `team_id` | `BIGINT UNSIGNED` | O | 초대 대상 팀 |
-| `created_by_user_id` | `BIGINT UNSIGNED` | O | 초대 링크 생성자 |
-| `token_hash` | `BINARY(32)` | O | 초대 토큰의 SHA-256 해시, `UNIQUE` |
-| `default_role` | `VARCHAR(20)` | O | `ADMIN` 또는 `MEMBER` |
-| `max_uses` | `INT UNSIGNED` | O | 최대 사용 횟수 |
+| `created_by_user_id` | `BIGINT UNSIGNED` | O | 초대 코드 생성자 (OWNER 또는 ADMIN) |
+| `token_hash` | `BINARY(32)` | O | 초대 코드의 SHA-256 해시, `UNIQUE`. 코드 길이가 짧아져도 해시 출력은 항상 32바이트라 컬럼 변경 불필요 |
+| `max_uses` | `INT UNSIGNED` | X | `NULL` = 사용 횟수 무제한 (팀원 수 제한 없음 요구사항 반영) |
 | `used_count` | `INT UNSIGNED` | O | 현재 사용 횟수 |
-| `expires_at` | `DATETIME(3)` | O | 만료 시각 |
-| `revoked_at` | `DATETIME(3)` | X | 링크 폐기 시각 |
+| `expires_at` | `DATETIME(3)` | O | 만료 시각 (발급 시점 + 24시간) |
+| `revoked_at` | `DATETIME(3)` | X | 코드 폐기 시각 |
 | `created_at` | `DATETIME(3)` | O | 생성 시각 |
+| `active_code_marker` | `BIGINT UNSIGNED` | X | `revoked_at IS NULL`일 때만 `team_id`, 그 외 `NULL`. DB가 자동 계산(generated column), 애플리케이션에서 값을 넣지 않는다 |
 
-초대 URL 예시:
+**팀당 활성 코드 1개 제약 (DB 레벨 강제)**
 
-```text
-https://service.example.com/team/join?token=<256-bit-random-token>
+새 초대 코드를 발급하면 기존에 살아있던 코드는 자동 폐기되어야 한다는 요구사항을, `team_members`의 활성 OWNER 제약과 동일한 패턴(generated column + unique index)으로 강제한다.
+
+```sql
+ALTER TABLE team_invite_links
+  ADD COLUMN active_code_marker BIGINT UNSIGNED
+  GENERATED ALWAYS AS (CASE WHEN revoked_at IS NULL THEN team_id END) STORED;
+
+CREATE UNIQUE INDEX uk_invite_one_active_code_per_team ON team_invite_links(active_code_marker);
 ```
+
+새 코드를 발급하는 트랜잭션은 반드시 **① 기존 활성 코드에 `revoke()` 호출(`revoked_at` 설정) → ② 새 코드 INSERT** 순서로 처리해야 한다. 순서를 지키지 않으면(기존 코드를 안 지우고 새 코드부터 넣으면) 유니크 인덱스 위반으로 즉시 실패한다 — 즉 이 실수를 DB가 스스로 막아준다.
 
 초대 처리 흐름:
 
-1. 사용자가 초대 URL에 접근한다.
-2. 서버가 원본 토큰을 SHA-256으로 해시해 `token_hash`를 조회한다.
-3. 만료, 폐기, 사용 횟수를 검사한다.
+1. 사용자가 "팀 참가" 화면에서 초대 코드를 입력한다.
+2. 서버가 입력값을 SHA-256으로 해시해 `token_hash`를 조회한다.
+3. 코드가 없거나(`token_hash` 불일치) 만료됐으면(`expires_at` 경과) **동일하게 "유효하지 않은 초대"로 안내**한다 (사유를 구분해서 노출하지 않음).
 4. 로그인하지 않은 사용자는 카카오 OAuth로 이동한다.
-5. OAuth `state`와 서버 세션에 초대 흐름을 연결한다.
-6. 트랜잭션에서 초대 링크를 `SELECT ... FOR UPDATE`로 잠근다.
-7. `team_members`를 생성하고 `used_count`를 증가시킨다.
+5. 트랜잭션에서 초대 코드를 `SELECT ... FOR UPDATE`로 잠근다.
+6. `team_members`를 **role = MEMBER**로 생성하고 `used_count`를 증가시킨다. 이미 그 팀에 있었다가 나간/강퇴된 사용자라면 기존 행을 UPDATE(재가입)한다.
 
 초대 수락 전용 테이블은 두지 않는다. 수락 결과는 `team_members.joined_via_invite_id`로 확인한다.
 
@@ -363,6 +376,7 @@ MVP에서는 캠페인과 광고 소재를 한 테이블에서 관리한다.
 | `media_unit_id` | `BIGINT UNSIGNED` | X | 선택한 매체, 선택 전에는 `NULL` |
 | `created_by_user_id` | `BIGINT UNSIGNED` | O | 등록 사용자 |
 | `campaign_name` | `VARCHAR(200)` | O | 캠페인명 |
+| `brand_name` | `VARCHAR(200)` | O | 브랜드명 |
 | `execution_start_date` | `DATE` | O | 집행 시작 일자 |
 | `execution_end_date` | `DATE` | O | 집행 종료 일자 |
 | `daily_target_play_count` | `INT UNSIGNED` | O | 하루 목표 광고 실행 횟수 |
@@ -585,11 +599,11 @@ attention_count
 ### 팀원 초대
 
 ```text
-OWNER 또는 ADMIN이 초대 토큰 생성
-→ team_invite_links에 토큰 해시 저장
-→ 팀원이 초대 URL 접근
+OWNER 또는 ADMIN이 초대 코드 생성
+→ 기존 활성 코드가 있으면 먼저 revoke, team_invite_links에 새 코드 해시 저장
+→ 팀원이 초대 코드 입력
 → 카카오 로그인
-→ team_members 생성
+→ team_members를 role=MEMBER로 생성 (또는 재가입 시 기존 행 UPDATE)
 → 초대 used_count 증가
 ```
 
@@ -629,7 +643,7 @@ SQS는 최소 한 번 배달(at-least-once)이라 같은 메시지가 두 번 �
 | `teams` | 광고주 팀 |
 | `team_members` | 팀 소속과 권한 |
 | `team_business_registrations` | 사업자등록 정보와 증빙 |
-| `team_invite_links` | 팀원 초대 URL |
+| `team_invite_links` | 팀원 초대 코드 |
 | `media_units` | Vision 장비가 내장된 옥외광고 매체 |
 | `campaigns` | 광고 캠페인과 선택 매체 |
 | `vision_summary_5s` | 5초 단위 Vision 원본 데이터 |

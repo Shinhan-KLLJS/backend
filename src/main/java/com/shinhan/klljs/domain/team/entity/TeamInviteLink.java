@@ -4,8 +4,6 @@ import com.shinhan.klljs.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -23,8 +21,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 /**
- * default_role은 ADMIN 또는 MEMBER만 허용한다 (OWNER 금지).
- * DB/엔티티 레벨에는 별도 제약이 없으므로 서비스 레이어에서 반드시 검증한다.
+ * 초대 코드로 합류하면 항상 MEMBER로 합류한다 (역할 선택 없음, 승격은 팀원 관리 화면에서 별도 처리).
+ * 팀당 폐기되지 않은(revoked_at IS NULL) 코드는 항상 하나만 존재한다 — 새 코드를 발급하면
+ * 기존 코드를 같은 트랜잭션에서 먼저 폐기해야 한다 (activeCodeMarker 유니크 인덱스가 강제).
  */
 @Entity
 @Table(name = "team_invite_links")
@@ -48,11 +47,8 @@ public class TeamInviteLink {
     @Column(name = "token_hash", nullable = false, unique = true, columnDefinition = "BINARY(32)")
     private byte[] tokenHash;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "default_role", nullable = false, length = 20)
-    private TeamMemberRole defaultRole;
-
-    @Column(name = "max_uses", nullable = false)
+    /** null이면 사용 횟수 무제한 */
+    @Column(name = "max_uses")
     private Integer maxUses;
 
     @Column(name = "used_count", nullable = false)
@@ -68,23 +64,26 @@ public class TeamInviteLink {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /**
+     * DB generated column (revoked_at이 NULL이면 team_id, 아니면 NULL).
+     * 팀당 활성 코드 1개를 유니크 인덱스로 강제하기 위한 컬럼 — 애플리케이션에서는 값을 쓰지 않는다.
+     */
+    @Column(name = "active_code_marker", insertable = false, updatable = false)
+    private Long activeCodeMarker;
+
     @Builder
-    public TeamInviteLink(Team team, User createdBy, byte[] tokenHash, TeamMemberRole defaultRole,
-                           Integer maxUses, LocalDateTime expiresAt) {
-        if (defaultRole == TeamMemberRole.OWNER) {
-            throw new IllegalArgumentException("defaultRole must not be OWNER");
-        }
+    public TeamInviteLink(Team team, User createdBy, byte[] tokenHash, Integer maxUses, LocalDateTime expiresAt) {
         this.team = team;
         this.createdBy = createdBy;
         this.tokenHash = tokenHash;
-        this.defaultRole = defaultRole;
         this.maxUses = maxUses;
         this.usedCount = 0;
         this.expiresAt = expiresAt;
     }
 
     public boolean isUsable(LocalDateTime now) {
-        return revokedAt == null && now.isBefore(expiresAt) && usedCount < maxUses;
+        boolean withinUseLimit = maxUses == null || usedCount < maxUses;
+        return revokedAt == null && now.isBefore(expiresAt) && withinUseLimit;
     }
 
     /** 호출 전 반드시 SELECT ... FOR UPDATE로 이 행을 잠근 상태여야 한다. */
@@ -95,6 +94,7 @@ public class TeamInviteLink {
         this.usedCount += 1;
     }
 
+    /** 새 코드를 발급하기 전, 기존 활성 코드에 반드시 먼저 호출해야 한다 (같은 트랜잭션). */
     public void revoke(LocalDateTime revokedAt) {
         this.revokedAt = revokedAt;
     }

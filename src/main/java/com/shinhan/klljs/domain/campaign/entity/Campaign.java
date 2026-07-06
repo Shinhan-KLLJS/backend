@@ -47,6 +47,9 @@ public class Campaign extends BaseTimeEntity {
     @Column(name = "campaign_name", nullable = false, length = 200)
     private String campaignName;
 
+    @Column(name = "brand_name", nullable = false, length = 200)
+    private String brandName;
+
     @Column(name = "execution_start_date", nullable = false)
     private LocalDate executionStartDate;
 
@@ -70,7 +73,7 @@ public class Campaign extends BaseTimeEntity {
     private String registrationFailureReason;
 
     @Builder
-    public Campaign(Team team, MediaUnit mediaUnit, User createdBy, String campaignName,
+    public Campaign(Team team, MediaUnit mediaUnit, User createdBy, String campaignName, String brandName,
                      LocalDate executionStartDate, LocalDate executionEndDate, Integer dailyTargetPlayCount,
                      String description, String imageUrl, CampaignStatus status) {
         if (executionEndDate.isBefore(executionStartDate)) {
@@ -80,6 +83,7 @@ public class Campaign extends BaseTimeEntity {
         this.mediaUnit = mediaUnit;
         this.createdBy = createdBy;
         this.campaignName = campaignName;
+        this.brandName = brandName;
         this.executionStartDate = executionStartDate;
         this.executionEndDate = executionEndDate;
         this.dailyTargetPlayCount = dailyTargetPlayCount;
