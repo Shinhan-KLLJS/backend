@@ -23,9 +23,20 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable) // 기본 로그인 폼 화면 비활성화
                 .httpBasic(AbstractHttpConfigurer::disable) // HTTP Basic 인증 비활성화
 
-                // 2. 세션을 사용하지 않도록 설정 (Stateless 설정)
+// TODO: 카카오 로그인 추가 후 주석 해제
+//                .csrf(csrf -> csrf
+//                        .ignoringRequestMatchers(
+//                                "/oauth2/authorization/kakao",
+//                                "/login/oauth2/code/kakao",
+//                                "/api/v1/auth/kakao/start",
+//                                "/api/v1/auth/token/refresh",
+//                                "/api/v1/auth/logout"
+//                        )
+//                )
+
+                // 2. oauth2Login()은 카카오로 갔다가 돌아오는 왕복 요청 사이에 state 값과 원래 요청 정보를 어딘가에 보관해야함
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
 
                 .headers(headers ->
@@ -40,24 +51,37 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/actuator/health",
-                                "/h2-console/**"
+                                "/h2-console/**",
+                                "/api/v1/auth/**", // 회원가입, 로그인 같은 인증 관련 API도 접근 허용
+                                "/oauth2/authorization/kakao",
+                                "/login/oauth2/code/kakao"
                         ).permitAll()
-
-
-                        // 회원가입, 로그인 같은 인증 관련 API도 접근 허용 (예시 경로)
-                        .requestMatchers("/api/v1/auth/**")
-                        .permitAll()
-
                         // 그 외 모든 요청은 인증(로그인)을 거쳐야만 접근 가능
                         .anyRequest().authenticated()
-                );
+                )
+                    // TODO: customOAuth2UserService, successHandler, failureHandler 구현
+//                .oauth2Login(oauth2 -> oauth2
+//                        .userInfoEndpoint(userInfo -> userInfo
+//                                .userService(customOAuth2UserService)
+//                        )
+//                        .successHandler(successHandler)
+//                        .failureHandler(failureHandler)
+//                )
+
+        // TODO: JwtDecoder 빈을 먼저 등록한 뒤에 이 줄을 켜야 함
+//                    .oauth2ResourceServer(resourceServer ->
+//                            resourceServer.jwt(
+//                                    Customizer.withDefaults()
+//                            )
+//                    );
+        ;
 
         return http.build();
     }
 
-    // 4. 비밀번호 암호화를 위한 Encoder 빈 등록 (BCrypt 해시 알고리즘 사용)
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+//    // 4. 비밀번호 암호화를 위한 Encoder 빈 등록 (BCrypt 해시 알고리즘 사용)
+//    @Bean
+//    public PasswordEncoder passwordEncoder() {
+//        return new BCryptPasswordEncoder();
+//    }
 }
