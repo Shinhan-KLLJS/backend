@@ -28,3 +28,14 @@ root_domain = "example.com"
 
 # ACM 인증서 ARN (ALB와 같은 리전에서 발급된 것)
 acm_certificate_arn = "arn:aws:acm:ap-northeast-2:xxxxxxxxxxxx:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# 카카오 디벨로퍼스 (REST API 키 / Client Secret, JavaScript 키·Admin 키 아님)
+kakao_rest_api_key  = "your-kakao-rest-api-key"
+kakao_client_secret = "your-kakao-client-secret"
+kakao_redirect_uri  = "https://api.example.com/login/oauth2/code/kakao"
+
+# 프론트엔드 주소 (로그인 성공/실패 리다이렉트용)
+app_frontend_url = "https://your-frontend.example.com"
+
+# 서비스 JWT 서명 키 (openssl rand -base64 32 로 생성)
+jwt_secret = "REPLACE_WITH_GENERATED_SECRET"

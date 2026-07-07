@@ -22,6 +22,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 
+	// 카카오 Authorization Code 로그인
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // KLLJS JWT Access Token 검증
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'

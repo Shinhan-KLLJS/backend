@@ -118,13 +118,18 @@ module "rds" {
 
 # ------------------------------------------------------------
 # 모듈 6: SSM Parameter Store
-# EC2가 배포 시 SSM Run Command로 조회할 DB 접속정보 저장
+# EC2가 배포 시 SSM Run Command로 조회할 DB 접속정보/카카오·JWT 설정 저장
 # ------------------------------------------------------------
 module "ssm_params" {
   source = "./modules/ssm_params"
 
-  project_name = var.project_name
-  db_url       = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
-  db_username  = var.db_username
-  db_password  = var.db_password
+  project_name        = var.project_name
+  db_url              = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
+  db_username         = var.db_username
+  db_password         = var.db_password
+  kakao_rest_api_key  = var.kakao_rest_api_key
+  kakao_client_secret = var.kakao_client_secret
+  kakao_redirect_uri  = var.kakao_redirect_uri
+  app_frontend_url    = var.app_frontend_url
+  jwt_secret          = var.jwt_secret
 }
