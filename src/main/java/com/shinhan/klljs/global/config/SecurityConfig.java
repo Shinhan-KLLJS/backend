@@ -28,7 +28,6 @@ public class SecurityConfig {
 //                        .ignoringRequestMatchers(
 //                                "/oauth2/authorization/kakao",
 //                                "/login/oauth2/code/kakao",
-//                                "/api/v1/auth/kakao/start",
 //                                "/api/v1/auth/token/refresh",
 //                                "/api/v1/auth/logout"
 //                        )
