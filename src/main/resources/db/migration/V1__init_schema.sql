@@ -44,18 +44,14 @@ CREATE TABLE team_invite_links (
     team_id            BIGINT UNSIGNED NOT NULL,
     created_by_user_id BIGINT UNSIGNED NOT NULL,
     token_hash         BINARY(32)      NOT NULL,
-    max_uses           INT UNSIGNED    NULL, -- NULL = 무제한
+    default_role       VARCHAR(20)     NOT NULL,
+    max_uses           INT UNSIGNED    NOT NULL,
     used_count         INT UNSIGNED    NOT NULL DEFAULT 0,
     expires_at         DATETIME(3)     NOT NULL,
     revoked_at         DATETIME(3)     NULL,
     created_at         DATETIME(3)     NOT NULL,
-    -- 팀당 폐기되지 않은(활성) 코드 1개만 허용. 새 코드 발급 시 기존 코드를 먼저 revoke해야 함
-    active_code_marker BIGINT UNSIGNED GENERATED ALWAYS AS (
-        CASE WHEN revoked_at IS NULL THEN team_id END
-    ) STORED,
     CONSTRAINT uk_invite_token_hash UNIQUE (token_hash),
-    CONSTRAINT uk_invite_one_active_code_per_team UNIQUE (active_code_marker),
-    CONSTRAINT chk_invite_used_count_within_max CHECK (max_uses IS NULL OR used_count <= max_uses),
+    CONSTRAINT chk_invite_used_count_within_max CHECK (used_count <= max_uses),
     CONSTRAINT fk_invite_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE RESTRICT,
     CONSTRAINT fk_invite_created_by FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
@@ -88,8 +84,6 @@ CREATE TABLE team_business_registrations (
     business_number       VARCHAR(20)     NULL,
     company_name          VARCHAR(200)    NULL,
     representative_name   VARCHAR(100)    NULL,
-    business_type          VARCHAR(100)    NULL,
-    business_address       VARCHAR(500)    NULL,
     document_storage_key  VARCHAR(1024)   NOT NULL,
     verification_status   VARCHAR(20)     NOT NULL,
     rejection_reason      VARCHAR(1000)   NULL,
@@ -127,7 +121,6 @@ CREATE TABLE campaigns (
     media_unit_id               BIGINT UNSIGNED NULL,
     created_by_user_id          BIGINT UNSIGNED NOT NULL,
     campaign_name               VARCHAR(200)    NOT NULL,
-    brand_name                  VARCHAR(200)    NOT NULL,
     execution_start_date        DATE            NOT NULL,
     execution_end_date          DATE            NOT NULL,
     daily_target_play_count     INT UNSIGNED    NOT NULL,
