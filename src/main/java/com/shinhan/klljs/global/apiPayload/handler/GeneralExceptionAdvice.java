@@ -8,6 +8,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -95,6 +96,15 @@ public class GeneralExceptionAdvice {
 
         String detail = "지원하지 않는 HTTP 메서드입니다: " + ex.getMethod();
         return ResponseEntity.status(ec.getHttpStatus()).body(ApiResponse.onFailure(ec, List.of(detail)));
+    }
+
+    // 신뢰 Origin 검증 실패 등 (403)
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
+        BaseErrorCode ec = GeneralErrorCode.FORBIDDEN;
+
+        log.warn("[AccessDenied] {}", ex.getMessage());
+        return ResponseEntity.status(ec.getHttpStatus()).body(ApiResponse.onFailure(ec, List.of()));
     }
 
     // 지원하지 않는 Content-Type (415)

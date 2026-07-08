@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
@@ -153,5 +154,31 @@ class RefreshTokenServiceTest {
         assertThat(cookie.getSameSite()).isEqualTo("Lax");
         assertThat(cookie.getPath()).isEqualTo("/api/v1/auth");
         assertThat(cookie.getMaxAge().getSeconds()).isEqualTo(TTL_SECONDS);
+    }
+
+    @Test
+    void expireCookie_setsZeroMaxAgeWithSameAttributes() {
+        ResponseCookie cookie = service.expireCookie();
+
+        assertThat(cookie.getName()).isEqualTo("refresh_token");
+        assertThat(cookie.getPath()).isEqualTo("/api/v1/auth");
+        assertThat(cookie.getMaxAge().getSeconds()).isZero();
+    }
+
+    @Test
+    void revoke_revokesMatchingToken() {
+        String rawToken = service.issue(user.getId());
+
+        service.revoke(rawToken);
+        entityManager.flush();
+
+        AuthRefreshToken reloaded = refreshTokenRepository.findByTokenHashForUpdate(TokenHasher.sha256(rawToken))
+                .orElseThrow();
+        assertThat(reloaded.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    void revoke_isNoOpForUnknownToken() {
+        assertThatCode(() -> service.revoke("no-such-token")).doesNotThrowAnyException();
     }
 }

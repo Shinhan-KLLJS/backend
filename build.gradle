@@ -56,6 +56,9 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 
+	// spring-boot-starter-test만으로는 MockMvc 자동설정이 빠져있어 별도로 추가해야 한다
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

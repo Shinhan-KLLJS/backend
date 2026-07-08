@@ -25,7 +25,7 @@ import java.util.Base64;
 @Service
 public class RefreshTokenService {
 
-    private static final String COOKIE_NAME = "refresh_token";
+    public static final String COOKIE_NAME = "refresh_token";
     private static final String COOKIE_PATH = "/api/v1/auth";
     private static final int RAW_TOKEN_BYTES = 32;
     private static final int FAMILY_ID_BYTES = 16;
@@ -85,14 +85,31 @@ public class RefreshTokenService {
                 .forEach(token -> token.revoke(now));
     }
 
+    /** 서비스 로그아웃 — 이 토큰 하나만 폐기한다. 이미 없거나 폐기된 토큰이어도 조용히 끝난다(멱등). */
+    @Transactional
+    public void revoke(String rawToken) {
+        byte[] tokenHash = TokenHasher.sha256(rawToken);
+        refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
+                .ifPresent(token -> token.revoke(LocalDateTime.now(clock)));
+    }
+
     public ResponseCookie buildCookie(String rawToken) {
-        return ResponseCookie.from(COOKIE_NAME, rawToken)
+        return baseCookie(rawToken)
+                .maxAge(Duration.ofSeconds(refreshTokenTtlSeconds))
+                .build();
+    }
+
+    /** 브라우저에게 이 쿠키를 즉시 지우라고 지시하는 응답용 쿠키. */
+    public ResponseCookie expireCookie() {
+        return baseCookie("").maxAge(Duration.ZERO).build();
+    }
+
+    private ResponseCookie.ResponseCookieBuilder baseCookie(String value) {
+        return ResponseCookie.from(COOKIE_NAME, value)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")
-                .path(COOKIE_PATH)
-                .maxAge(Duration.ofSeconds(refreshTokenTtlSeconds))
-                .build();
+                .path(COOKIE_PATH);
     }
 
     private void revokeFamily(byte[] familyId, LocalDateTime now) {
