@@ -32,8 +32,9 @@ dependencies {
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
-	// Springdoc OpenAPI Starter
-	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+	// 2.5.0은 Spring Framework 6(Boot 3) 시절 ControllerAdviceBean 생성자를 보고 컴파일된 버전이라
+	// Spring Framework 7(Boot 4)에서 NoSuchMethodError가 난다 — Boot 4를 지원하는 3.x로 올린다
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 
 	// 모니터링 및 헬스체크 스타터
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'

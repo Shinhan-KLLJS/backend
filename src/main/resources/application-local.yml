@@ -48,3 +48,9 @@ spring:
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-info-authentication-method: header
             user-name-attribute: id
+
+app:
+  security:
+    # 로컬 전용 도구(H2 콘솔 등)가 CSRF 토큰을 몰라서 매번 예외 목록을 챙겨야 하는 걸 피하기 위해
+    # 로컬에서는 CSRF 검증 자체를 끈다. 운영은 이 값이 없으니 기본값(true)이 그대로 적용된다.
+    csrf-enabled: false
