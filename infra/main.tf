@@ -117,6 +117,7 @@ module "ec2" {
   alb_security_group_id = module.alb.security_group_id
   target_group_arn   = module.alb.target_group_arn
   instance_type      = var.ec2_instance_type
+  ami_id             = var.ec2_ami_id
   key_name           = var.key_name
   s3_bucket_arn      = module.s3.bucket_arn
 }
