@@ -83,6 +83,28 @@ module "route53" {
 }
 
 # ------------------------------------------------------------
+# 모듈 3-2: Route53 (루트/www 도메인 → Vercel 프론트엔드 연결)
+# api.loovi.my와 같은 호스팅 영역이라 위 module.route53과 zone_id를 공유한다.
+# loovi.my(루트)는 Vercel 쪽에서 www.loovi.my로 308 리다이렉트되도록 이미 설정됨 —
+# 실제 프로덕션 프론트 origin은 www.loovi.my (var.app_frontend_url과 일치해야 함).
+# ------------------------------------------------------------
+resource "aws_route53_record" "frontend_apex" {
+  zone_id = module.route53.zone_id
+  name    = var.root_domain
+  type    = "A"
+  ttl     = 300
+  records = [var.vercel_apex_ip]
+}
+
+resource "aws_route53_record" "frontend_www" {
+  zone_id = module.route53.zone_id
+  name    = "www.${var.root_domain}"
+  type    = "CNAME"
+  ttl     = 300
+  records = [var.vercel_www_cname_target]
+}
+
+# ------------------------------------------------------------
 # 모듈 4: EC2 (Spring Boot)
 # Public subnet에 위치(보안그룹으로 ALB 외 인바운드 차단), ALB Target Group에 등록
 # ------------------------------------------------------------

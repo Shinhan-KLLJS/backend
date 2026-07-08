@@ -34,8 +34,13 @@ kakao_rest_api_key  = "your-kakao-rest-api-key"
 kakao_client_secret = "your-kakao-client-secret"
 kakao_redirect_uri  = "https://api.example.com/login/oauth2/code/kakao"
 
-# 프론트엔드 주소 (로그인 성공/실패 리다이렉트용)
+# 프론트엔드 주소 (로그인 성공/실패 리다이렉트용) — 실제로 브라우저가 접속하는 도메인과 정확히 일치해야 함
+# (예: Vercel에서 www가 Production이고 루트는 www로 리다이렉트한다면 www 쪽 주소)
 app_frontend_url = "https://your-frontend.example.com"
+
+# Vercel 등 프론트 호스팅 서비스가 도메인 연결 시 안내하는 DNS 값 (Vercel Domains 화면에서 확인)
+vercel_apex_ip          = "000.000.000.000"
+vercel_www_cname_target = "xxxxxxxxxxxxxxxx.vercel-dns-xxx.com"
 
 # 서비스 JWT 서명 키 (openssl rand -base64 32 로 생성)
 jwt_secret = "REPLACE_WITH_GENERATED_SECRET"

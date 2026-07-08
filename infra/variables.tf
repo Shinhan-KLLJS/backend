@@ -102,7 +102,17 @@ variable "kakao_redirect_uri" {
 }
 
 variable "app_frontend_url" {
-  description = "로그인 성공/실패 후 리다이렉트할 프론트엔드 주소"
+  description = "로그인 성공/실패 후 리다이렉트할 프론트엔드 주소 (실제 브라우저 접속 origin과 정확히 일치해야 함)"
+  type        = string
+}
+
+variable "vercel_apex_ip" {
+  description = "루트 도메인(root_domain)을 Vercel에 연결하기 위한 A 레코드 값 (Vercel Domains 화면에서 확인)"
+  type        = string
+}
+
+variable "vercel_www_cname_target" {
+  description = "www 서브도메인을 Vercel에 연결하기 위한 CNAME 값 (Vercel Domains 화면에서 확인, 프로젝트마다 다름)"
   type        = string
 }
 

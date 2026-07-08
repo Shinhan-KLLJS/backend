@@ -32,14 +32,14 @@ public class JwtConfig {
 
     @Bean
     JwtEncoder jwtEncoder(
-            @Value("${app.auth.jwt.secret:local-dev-only-jwt-secret-value-please-rotate}") String secret
+            @Value("${app.auth.jwt.secret}") String secret
     ) {
         return new NimbusJwtEncoder(new ImmutableSecret<>(secretKey(secret)));
     }
 
     @Bean
     JwtDecoder jwtDecoder(
-            @Value("${app.auth.jwt.secret:local-dev-only-jwt-secret-value-please-rotate}") String secret,
+            @Value("${app.auth.jwt.secret}") String secret,
             @Value("${app.auth.jwt.issuer:klljs}") String issuer
     ) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder
