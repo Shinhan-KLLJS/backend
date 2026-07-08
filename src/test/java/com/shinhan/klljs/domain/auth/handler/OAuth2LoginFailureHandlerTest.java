@@ -32,10 +32,12 @@ class OAuth2LoginFailureHandlerTest {
     }
 
     @Test
-    void redirectsWithUserWithdrawnPassedThroughAsIs() throws Exception {
+    void redirectsWithGenericKakaoAuthenticationFailedForUserWithdrawnSinceItCanNoLongerBeThrown() throws Exception {
+        // SocialLoginService는 더 이상 WITHDRAWN을 차단하지 않으므로(자동 재활성화),
+        // 이 코드가 실제로 발생하지는 않지만 알려지지 않은 코드와 동일하게 처리되는지 확인한다.
         String redirectedUrl = handle(new OAuth2AuthenticationException("USER_WITHDRAWN"));
 
-        assertThat(redirectedUrl).isEqualTo("https://app.example.com/login/failure?reason=USER_WITHDRAWN");
+        assertThat(redirectedUrl).isEqualTo("https://app.example.com/login/failure?reason=KAKAO_AUTHENTICATION_FAILED");
     }
 
     @Test

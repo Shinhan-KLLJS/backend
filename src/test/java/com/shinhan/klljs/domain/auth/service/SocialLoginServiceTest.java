@@ -106,16 +106,19 @@ class SocialLoginServiceTest {
     }
 
     @Test
-    void loginOrSignUp_throwsForWithdrawnUser() {
+    void loginOrSignUp_reactivatesWithdrawnUserAndLogsIn() {
         User user = persistUser("탈퇴함", UserStatus.WITHDRAWN);
         persistSocialAccount(user, "1005");
 
         KakaoOAuth2UserInfo kakao = new KakaoOAuth2UserInfo("1005", "탈퇴함", null, null);
 
-        assertThatThrownBy(() -> service.loginOrSignUp(kakao))
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(OAuth2AuthenticationException.class))
-                .extracting(ex -> ex.getError().getErrorCode())
-                .isEqualTo("USER_WITHDRAWN");
+        AuthenticatedUser result = service.loginOrSignUp(kakao);
+
+        assertThat(result.userId()).isEqualTo(user.getId());
+        assertThat(result.status()).isEqualTo(UserStatus.ACTIVE);
+
+        User reloaded = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
     }
 
     private User persistUser(String displayName, UserStatus status) {

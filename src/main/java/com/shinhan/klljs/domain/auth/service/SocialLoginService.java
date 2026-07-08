@@ -42,7 +42,7 @@ public class SocialLoginService {
 
     private AuthenticatedUser loginExistingUser(UserSocialAccount socialAccount) {
         User user = socialAccount.getUser();
-        validateLoginAllowed(user);
+        reactivateOrRejectIfNeeded(user);
         user.recordLogin(LocalDateTime.now(clock));
 
         return new AuthenticatedUser(user.getId(), user.getStatus());
@@ -74,17 +74,20 @@ public class SocialLoginService {
         return new AuthenticatedUser(user.getId(), user.getStatus());
     }
 
-    private void validateLoginAllowed(User user) {
-        switch (user.getStatus()) {
-            /*
-            이 코드는 @RestController 안이 아니라 Spring Security의 인증 필터 체인 안에서 실행됩니다.
-            GeneralException을 던지면 우리 프로젝트의 @RestControllerAdvice가 못 잡고 그냥 500 에러로 새 버립니다.
-            OAuth2AuthenticationException을 던져야 Spring Security가 "인증 실패"로 인식해서 failureHandler로 보내줍니다.
-             */
-            case SUSPENDED -> throw new OAuth2AuthenticationException("USER_SUSPENDED");
-            case WITHDRAWN -> throw new OAuth2AuthenticationException("USER_WITHDRAWN");
-            case ACTIVE -> {
-            }
+    /*
+     * 이 코드는 @RestController 안이 아니라 Spring Security의 인증 필터 체인 안에서 실행됩니다.
+     * GeneralException을 던지면 우리 프로젝트의 @RestControllerAdvice가 못 잡고 그냥 500 에러로 새 버립니다.
+     * OAuth2AuthenticationException을 던져야 Spring Security가 "인증 실패"로 인식해서 failureHandler로 보내줍니다.
+     *
+     * WITHDRAWN은 차단하지 않는다 — 탈퇴자가 카카오로 다시 로그인하면 그 자체를 재가입 의사로 보고
+     * 자동으로 ACTIVE로 되돌린 뒤 정상 로그인시킨다.
+     */
+    private void reactivateOrRejectIfNeeded(User user) {
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            throw new OAuth2AuthenticationException("USER_SUSPENDED");
+        }
+        if (user.getStatus() == UserStatus.WITHDRAWN) {
+            user.changeStatus(UserStatus.ACTIVE);
         }
     }
 

@@ -23,8 +23,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
 
+    // USER_WITHDRAWN은 여기 없다 — SocialLoginService가 WITHDRAWN 사용자를 더 이상 차단하지 않고
+    // 자동 재활성화하므로, 이 코드가 실제로 발생할 경로가 없다.
     private static final Set<String> KNOWN_SAFE_REASONS = Set.of(
-            "USER_SUSPENDED", "USER_WITHDRAWN", "KAKAO_PROFILE_INVALID"
+            "USER_SUSPENDED", "KAKAO_PROFILE_INVALID"
     );
     private static final String ACCESS_DENIED_ERROR_CODE = "access_denied";
 
