@@ -38,7 +38,9 @@ class KakaoOAuth2UserInfoTest {
         Map<String, Object> attributes = new HashMap<>();
 
         assertThatThrownBy(() -> KakaoOAuth2UserInfo.from(attributes))
-                .isInstanceOf(OAuth2AuthenticationException.class);
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(OAuth2AuthenticationException.class))
+                .extracting(ex -> ex.getError().getErrorCode())
+                .isEqualTo("KAKAO_PROFILE_INVALID");
     }
 
     @Test

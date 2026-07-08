@@ -13,4 +13,12 @@ class AppAuthPropertiesTest {
         assertThat(properties.frontendLoginSuccessUrl())
                 .isEqualTo("https://app.example.com/login/success");
     }
+
+    @Test
+    void frontendLoginFailureUrl_appendsLoginFailurePathWithEncodedReason() {
+        AppAuthProperties properties = new AppAuthProperties("https://app.example.com");
+
+        assertThat(properties.frontendLoginFailureUrl("USER_SUSPENDED"))
+                .isEqualTo("https://app.example.com/login/failure?reason=USER_SUSPENDED");
+    }
 }

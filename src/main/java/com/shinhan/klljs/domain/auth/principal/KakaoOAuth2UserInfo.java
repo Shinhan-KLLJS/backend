@@ -18,7 +18,7 @@ public record KakaoOAuth2UserInfo(
     public static KakaoOAuth2UserInfo from(Map<String, Object> attributes) {
         Object rawId = attributes.get("id");
         if (rawId == null) {
-            throw new OAuth2AuthenticationException("Kakao user id is missing");
+            throw new OAuth2AuthenticationException("KAKAO_PROFILE_INVALID");
         }
 
         Map<String, Object> account = asMap(attributes.get("kakao_account"));
