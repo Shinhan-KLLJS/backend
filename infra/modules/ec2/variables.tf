@@ -7,3 +7,4 @@ variable "target_group_arn"      { type = string }
 variable "instance_type"         { type = string }
 variable "key_name"              { type = string }
 variable "s3_bucket_arn"         { type = string }
+variable "ami_id"                { type = string }
