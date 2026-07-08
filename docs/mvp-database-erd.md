@@ -386,15 +386,15 @@ MVP에서는 캠페인과 광고 소재를 한 테이블에서 관리한다.
 | `registration_failure_reason` | `VARCHAR(1000)` | X | 등록 실패 사유 |
 | `created_at`, `updated_at` | `DATETIME(3)` | O | 생성·수정 시각 |
 
-캠페인 상태는 단순한 단일 상태 머신으로 관리한다.
+캠페인 상태는 단순한 단일 상태 머신으로 관리한다. 임시저장·다단계 등록 같은 기획이 없어 `DRAFT` 상태는 사용하지 않는다.
 
 ```text
-DRAFT
-  ├─ REGISTRATION_FAILED
-  └─ REGISTERED
-       └─ BEFORE_EXECUTION
-            └─ IN_EXECUTION
-                 └─ AFTER_EXECUTION
+REGISTRATION_FAILED
+
+REGISTERED
+  └─ BEFORE_EXECUTION
+       └─ IN_EXECUTION
+            └─ AFTER_EXECUTION
 ```
 
 필수 제약:
@@ -442,11 +442,13 @@ Vision AI의 5초 단위 메시지 한 건을 한 행으로 저장한다. 고정
 | `received_at` | `DATETIME(3)` | O | 서버 수신 시각 |
 | `raw_payload` | `JSON` | X | 원본 SQS 메시지 |
 
-SQS 중복 전달과 장비 재시작 후 `seq` 초기화를 함께 고려한 권장 중복 방지 키:
+SQS 중복 전달에 대비한 중복 방지 키:
 
 ```text
-UNIQUE(media_unit_id, event_time, seq)
+UNIQUE(media_unit_id, event_time)
 ```
+
+`seq`는 이 키에 포함하지 않는다. 장비가 재시작되면 `seq`가 1부터 다시 시작되므로, 같은 5초 window를 다른 `seq`로 재전송하면 `seq`를 포함한 키로는 중복을 걸러내지 못한다. `seq`는 정렬·디버깅 보조 값으로만 저장한다.
 
 #### 기본 인원 컬럼
 
@@ -625,7 +627,7 @@ SQS 메시지 수신
 → v2 JSON Schema 검증
 → board_id / device_id로 매체 매핑
 → 매체와 event_time으로 캠페인 매핑
-→ vision_summary_5s 저장 (UNIQUE(media_unit_id, event_time, seq) 위반 시 중복 수신으로 간주하고 정상 처리로 취급)
+→ vision_summary_5s 저장 (UNIQUE(media_unit_id, event_time) 위반 시 중복 수신으로 간주하고 정상 처리로 취급)
 → SQS 메시지 삭제(ACK)
 → 주기적으로 1분/1시간/1일 집계
 ```
