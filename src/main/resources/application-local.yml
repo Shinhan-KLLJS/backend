@@ -20,3 +20,31 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+  security:
+    oauth2:
+      client:
+        # client-id/secret은 placeholder 기본값이라 실제 카카오 로그인은 안 되지만,
+        # ClientRegistrationRepository 빈이 로컬/테스트에서도 존재해야 oauth2Login()이 컨텍스트 로딩에 실패하지 않는다.
+        # 실제로 로컬에서 브라우저로 카카오 로그인을 끝까지 테스트하려면
+        # KAKAO_REST_API_KEY/KAKAO_CLIENT_SECRET/KAKAO_REDIRECT_URI 환경변수로 진짜 값을 덮어쓴다.
+        registration:
+          kakao:
+            client-id: ${KAKAO_REST_API_KEY:local-dev-placeholder-client-id}
+            client-secret: ${KAKAO_CLIENT_SECRET:local-dev-placeholder-client-secret}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/login/oauth2/code/kakao}
+            client-name: Kakao
+            scope:
+              - profile_nickname
+              - profile_image
+              - account_email
+
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-info-authentication-method: header
+            user-name-attribute: id

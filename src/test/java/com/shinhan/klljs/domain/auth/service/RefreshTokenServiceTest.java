@@ -75,8 +75,11 @@ class RefreshTokenServiceTest {
                 .orElseThrow();
         byte[] familyId = firstEntity.getTokenFamilyId();
 
-        String secondToken = service.rotate(firstToken);
+        RefreshTokenService.RotatedRefreshToken rotated = service.rotate(firstToken);
+        String secondToken = rotated.rawToken();
         entityManager.flush();
+
+        assertThat(rotated.userId()).isEqualTo(user.getId());
 
         AuthRefreshToken oldReloaded = refreshTokenRepository.findByTokenHashForUpdate(TokenHasher.sha256(firstToken))
                 .orElseThrow();
@@ -114,7 +117,7 @@ class RefreshTokenServiceTest {
     @Test
     void rotate_reuseOfAlreadyRevokedTokenRevokesWholeFamily() {
         String firstToken = service.issue(user.getId());
-        String secondToken = service.rotate(firstToken);
+        String secondToken = service.rotate(firstToken).rawToken();
 
         // family 전체 폐기는 REQUIRES_NEW로 별도 커밋되므로, 그게 볼 수 있도록 여기까지를 실제로 커밋한다.
         // (테스트가 @Transactional로 감싸여 있어 커밋하지 않으면 REQUIRES_NEW 트랜잭션에는 이 데이터가 안 보인다)

@@ -1,37 +1,50 @@
 package com.shinhan.klljs.global.config;
 
+import com.shinhan.klljs.domain.auth.handler.OAuth2LoginFailureHandler;
+import com.shinhan.klljs.domain.auth.handler.OAuth2LoginSuccessHandler;
+import com.shinhan.klljs.domain.auth.service.CustomOAuth2UserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity // Spring Security 설정을 활성화
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2LoginSuccessHandler successHandler;
+    private final OAuth2LoginFailureHandler failureHandler;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 // 1. REST API 환경이므로 기본 제공되는 UI성 설정들을 비활성화합니다.
-                .csrf(AbstractHttpConfigurer::disable) // CSRF 보호 비활성화 (기본적으로 세션 기반이 아닌 JWT/토큰 기반일 때 필수)
                 .formLogin(AbstractHttpConfigurer::disable) // 기본 로그인 폼 화면 비활성화
                 .httpBasic(AbstractHttpConfigurer::disable) // HTTP Basic 인증 비활성화
 
-// TODO: 카카오 로그인 추가 후 주석 해제
-//                .csrf(csrf -> csrf
-//                        .ignoringRequestMatchers(
-//                                "/oauth2/authorization/kakao",
-//                                "/login/oauth2/code/kakao",
-//                                "/api/v1/auth/token/refresh",
-//                                "/api/v1/auth/logout"
-//                        )
-//                )
+                // MVP 선택지 A: Refresh Token 쿠키를 SameSite=Lax로 두고
+                // Refresh/Logout은 TrustedOriginValidator로 Origin을 직접 검증하므로,
+                // 이 auth endpoint들은 CSRF 예외로 둔다.
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers(
+                                "/oauth2/authorization/kakao",
+                                "/login/oauth2/code/kakao",
+                                "/api/v1/auth/token/refresh",
+                                "/api/v1/auth/logout"
+                        )
+                )
+
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
                 // 2. oauth2Login()은 카카오로 갔다가 돌아오는 왕복 요청 사이에 state 값과 원래 요청 정보를 어딘가에 보관해야함
                 .sessionManagement(session -> session
@@ -58,29 +71,19 @@ public class SecurityConfig {
                         // 그 외 모든 요청은 인증(로그인)을 거쳐야만 접근 가능
                         .anyRequest().authenticated()
                 )
-                    // TODO: customOAuth2UserService, successHandler, failureHandler 구현
-//                .oauth2Login(oauth2 -> oauth2
-//                        .userInfoEndpoint(userInfo -> userInfo
-//                                .userService(customOAuth2UserService)
-//                        )
-//                        .successHandler(successHandler)
-//                        .failureHandler(failureHandler)
-//                )
 
-        // TODO: JwtDecoder 빈을 먼저 등록한 뒤에 이 줄을 켜야 함
-//                    .oauth2ResourceServer(resourceServer ->
-//                            resourceServer.jwt(
-//                                    Customizer.withDefaults()
-//                            )
-//                    );
-        ;
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler(successHandler)
+                        .failureHandler(failureHandler)
+                )
+
+                .oauth2ResourceServer(resourceServer ->
+                        resourceServer.jwt(Customizer.withDefaults())
+                );
 
         return http.build();
     }
-
-//    // 4. 비밀번호 암호화를 위한 Encoder 빈 등록 (BCrypt 해시 알고리즘 사용)
-//    @Bean
-//    public PasswordEncoder passwordEncoder() {
-//        return new BCryptPasswordEncoder();
-//    }
 }

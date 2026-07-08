@@ -66,18 +66,18 @@ class RefreshTokenConcurrencyMySqlTest {
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch startLatch = new CountDownLatch(1);
-        Callable<String> attemptRotate = () -> {
+        Callable<RefreshTokenService.RotatedRefreshToken> attemptRotate = () -> {
             startLatch.await();
             return refreshTokenService.rotate(rawToken);
         };
 
-        Future<String> first = executor.submit(attemptRotate);
-        Future<String> second = executor.submit(attemptRotate);
+        Future<RefreshTokenService.RotatedRefreshToken> first = executor.submit(attemptRotate);
+        Future<RefreshTokenService.RotatedRefreshToken> second = executor.submit(attemptRotate);
         startLatch.countDown();
 
         int successCount = 0;
         int failureCount = 0;
-        for (Future<String> future : List.of(first, second)) {
+        for (Future<RefreshTokenService.RotatedRefreshToken> future : List.of(first, second)) {
             try {
                 future.get(10, TimeUnit.SECONDS);
                 successCount++;

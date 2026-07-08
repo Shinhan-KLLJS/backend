@@ -59,7 +59,7 @@ public class RefreshTokenService {
 
     /** 재사용(이미 폐기된 토큰 재제시)이 감지되면 family 전체를 폐기하고 예외를 던진다. */
     @Transactional
-    public String rotate(String rawToken) {
+    public RotatedRefreshToken rotate(String rawToken) {
         byte[] tokenHash = TokenHasher.sha256(rawToken);
         AuthRefreshToken current = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN));
@@ -74,10 +74,11 @@ public class RefreshTokenService {
             throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
 
-        RawTokenAndEntity next = createAndSave(current.getUser().getId(), current.getTokenFamilyId());
+        Long userId = current.getUser().getId();
+        RawTokenAndEntity next = createAndSave(userId, current.getTokenFamilyId());
         current.markRotated(next.entity().getId(), now);
 
-        return next.rawToken();
+        return new RotatedRefreshToken(next.rawToken(), userId);
     }
 
     @Transactional
@@ -140,5 +141,8 @@ public class RefreshTokenService {
     }
 
     private record RawTokenAndEntity(String rawToken, AuthRefreshToken entity) {
+    }
+
+    public record RotatedRefreshToken(String rawToken, Long userId) {
     }
 }
