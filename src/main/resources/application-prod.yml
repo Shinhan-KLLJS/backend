@@ -1,3 +1,9 @@
+server:
+  # ALB가 443(HTTPS)을 받아 EC2에는 8080(HTTP)으로 전달한다.
+  # X-Forwarded-Proto 등을 신뢰하지 않으면 앱이 스스로를 http로 착각해
+  # springdoc의 servers URL 등 자기 자신을 가리키는 절대 URL이 http://로 잘못 생성된다.
+  forward-headers-strategy: framework
+
 spring:
   flyway:
     enabled: true # db/migration의 SQL로 스키마 관리 (Hibernate는 검증만 함)
