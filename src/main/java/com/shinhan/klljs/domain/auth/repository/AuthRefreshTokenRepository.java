@@ -16,6 +16,9 @@ public interface AuthRefreshTokenRepository extends JpaRepository<AuthRefreshTok
     @Query("select t from AuthRefreshToken t where t.tokenHash = :tokenHash")
     Optional<AuthRefreshToken> findByTokenHashForUpdate(@Param("tokenHash") byte[] tokenHash);
 
+    /** 잠금 없는 단순 조회 — 락이 필요 없는 조회/진단용. */
+    Optional<AuthRefreshToken> findByTokenHash(byte[] tokenHash);
+
     List<AuthRefreshToken> findByTokenFamilyId(byte[] tokenFamilyId);
 
     List<AuthRefreshToken> findByUserIdAndRevokedAtIsNull(Long userId);

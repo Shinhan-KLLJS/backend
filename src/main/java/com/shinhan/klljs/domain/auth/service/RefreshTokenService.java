@@ -32,6 +32,7 @@ public class RefreshTokenService {
 
     private final AuthRefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final RefreshTokenFamilyRevoker familyRevoker;
     private final Clock clock;
     private final long refreshTokenTtlSeconds;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -39,11 +40,13 @@ public class RefreshTokenService {
     public RefreshTokenService(
             AuthRefreshTokenRepository refreshTokenRepository,
             UserRepository userRepository,
+            RefreshTokenFamilyRevoker familyRevoker,
             Clock clock,
             @Value("${app.auth.jwt.refresh-token-ttl-seconds:1209600}") long refreshTokenTtlSeconds
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
+        this.familyRevoker = familyRevoker;
         this.clock = clock;
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
@@ -64,7 +67,7 @@ public class RefreshTokenService {
         LocalDateTime now = LocalDateTime.now(clock);
 
         if (current.getRevokedAt() != null) {
-            revokeFamily(current.getTokenFamilyId(), now);
+            familyRevoker.revokeFamily(current.getTokenFamilyId(), now);
             throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
         if (!current.isUsable(now)) {
@@ -110,12 +113,6 @@ public class RefreshTokenService {
                 .secure(true)
                 .sameSite("Lax")
                 .path(COOKIE_PATH);
-    }
-
-    private void revokeFamily(byte[] familyId, LocalDateTime now) {
-        refreshTokenRepository.findByTokenFamilyId(familyId).stream()
-                .filter(token -> token.getRevokedAt() == null)
-                .forEach(token -> token.revoke(now));
     }
 
     private RawTokenAndEntity createAndSave(Long userId, byte[] familyId) {

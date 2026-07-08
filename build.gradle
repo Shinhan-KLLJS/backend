@@ -65,5 +65,17 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	useJUnitPlatform {
+		// 실제 MySQL 컨테이너가 필요한 동시성 테스트는 기본 test 실행에서 제외한다
+		excludeTags 'mysql-concurrency'
+	}
+}
+
+// 실행 전 실제 MySQL 컨테이너를 준비해야 한다: ./gradlew mysqlConcurrencyTest
+tasks.register('mysqlConcurrencyTest', Test) {
+	useJUnitPlatform {
+		includeTags 'mysql-concurrency'
+	}
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
 }

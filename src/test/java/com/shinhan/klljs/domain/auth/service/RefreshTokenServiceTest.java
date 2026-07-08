@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.ResponseCookie;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -40,6 +41,9 @@ class RefreshTokenServiceTest {
     private UserRepository userRepository;
 
     @Autowired
+    private RefreshTokenFamilyRevoker familyRevoker;
+
+    @Autowired
     private EntityManager entityManager;
 
     private RefreshTokenService service;
@@ -47,7 +51,7 @@ class RefreshTokenServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RefreshTokenService(refreshTokenRepository, userRepository, FIXED_CLOCK, TTL_SECONDS);
+        service = new RefreshTokenService(refreshTokenRepository, userRepository, familyRevoker, FIXED_CLOCK, TTL_SECONDS);
         user = User.builder().displayName("철수").status(UserStatus.ACTIVE).build();
         entityManager.persist(user);
     }
@@ -111,12 +115,16 @@ class RefreshTokenServiceTest {
     void rotate_reuseOfAlreadyRevokedTokenRevokesWholeFamily() {
         String firstToken = service.issue(user.getId());
         String secondToken = service.rotate(firstToken);
-        entityManager.flush();
+
+        // family 전체 폐기는 REQUIRES_NEW로 별도 커밋되므로, 그게 볼 수 있도록 여기까지를 실제로 커밋한다.
+        // (테스트가 @Transactional로 감싸여 있어 커밋하지 않으면 REQUIRES_NEW 트랜잭션에는 이 데이터가 안 보인다)
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        TestTransaction.start();
 
         // firstToken은 이미 회전으로 폐기됨 -> 다시 제시하면 탈취 의심으로 처리되어야 함
         assertThatThrownBy(() -> service.rotate(firstToken))
                 .isInstanceOf(GeneralException.class);
-        entityManager.flush();
 
         AuthRefreshToken secondReloaded = refreshTokenRepository.findByTokenHashForUpdate(TokenHasher.sha256(secondToken))
                 .orElseThrow();

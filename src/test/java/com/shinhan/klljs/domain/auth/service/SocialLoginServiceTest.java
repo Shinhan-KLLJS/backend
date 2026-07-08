@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -119,6 +121,38 @@ class SocialLoginServiceTest {
 
         User reloaded = userRepository.findById(user.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void loginOrSignUp_doesNotMergeUsersBySharedEmail() {
+        KakaoOAuth2UserInfo firstKakao = new KakaoOAuth2UserInfo("2001", "철수", "shared@example.com", null);
+        KakaoOAuth2UserInfo secondKakao = new KakaoOAuth2UserInfo("2002", "영희", "shared@example.com", null);
+
+        AuthenticatedUser first = service.loginOrSignUp(firstKakao);
+        AuthenticatedUser second = service.loginOrSignUp(secondKakao);
+
+        assertThat(first.userId()).isNotEqualTo(second.userId());
+        assertThat(userRepository.findAllById(List.of(first.userId(), second.userId())))
+                .extracting(User::getEmail)
+                .containsExactly("shared@example.com", "shared@example.com");
+    }
+
+    @Test
+    void socialAccountUniqueConstraint_rejectsDuplicateProviderAndProviderUserId() {
+        User firstUser = persistUser("A", UserStatus.ACTIVE);
+        persistSocialAccount(firstUser, "3001");
+        entityManager.flush();
+
+        User secondUser = persistUser("B", UserStatus.ACTIVE);
+        UserSocialAccount duplicate = UserSocialAccount.builder()
+                .user(secondUser)
+                .provider(SocialProvider.KAKAO)
+                .providerUserId("3001")
+                .connectedAt(LocalDateTime.now(FIXED_CLOCK))
+                .build();
+
+        assertThatThrownBy(() -> socialAccountRepository.save(duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private User persistUser(String displayName, UserStatus status) {
