@@ -53,6 +53,11 @@ variable "ec2_instance_type" {
   default     = "t3.small"
 }
 
+variable "ec2_ami_id" {
+  description = "EC2에 사용할 AMI ID. most_recent 자동조회 대신 고정값을 쓴다 - 관련없는 apply 도중 AMI가 갱신되어 인스턴스가 재생성되는 사고를 막기 위함. 의도적으로 업그레이드할 때만 이 값을 바꾼다 (aws ec2 describe-images --owners amazon --filters \"Name=name,Values=al2023-ami-*-x86_64\" --query \"reverse(sort_by(Images,&CreationDate))[0].ImageId\")."
+  type        = string
+}
+
 variable "key_name" {
   description = "EC2 SSH 키페어 이름 (AWS 콘솔에서 미리 생성 필요)"
   type        = string

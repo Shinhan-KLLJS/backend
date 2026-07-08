@@ -130,25 +130,13 @@ resource "aws_iam_instance_profile" "ec2" {
   role = aws_iam_role.ec2.name
 }
 
-# ──────────────── 최신 Amazon Linux 2023 AMI 자동 조회 ────────────────
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
-}
-
 # ──────────────── EC2 인스턴스 ────────────────
+# AMI는 var.ami_id로 고정한다 (data.aws_ami + most_recent=true였을 때,
+# apply할 때마다 최신 AMI를 새로 집어와 ami 변경 -> 인스턴스 강제 재생성 -> 무중단 배포 중이던
+# 컨테이너가 통째로 사라지는 사고가 실제로 발생했다. 의도적으로 업그레이드할 때만
+# terraform.tfvars의 ec2_ami_id 값을 바꾼다).
 resource "aws_instance" "spring" {
-  ami                    = data.aws_ami.amazon_linux.id
+  ami                    = var.ami_id
   instance_type          = var.instance_type
   subnet_id              = var.public_subnet_ids[0]  # public subnet (map_public_ip_on_launch로 퍼블릭 IP 자동 할당)
   vpc_security_group_ids = [aws_security_group.ec2.id]
