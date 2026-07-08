@@ -1,30 +1,81 @@
 package com.shinhan.klljs.global.config;
 
+import com.shinhan.klljs.domain.auth.handler.OAuth2LoginFailureHandler;
+import com.shinhan.klljs.domain.auth.handler.OAuth2LoginSuccessHandler;
+import com.shinhan.klljs.domain.auth.service.CustomOAuth2UserService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity // Spring Security 설정을 활성화
 public class SecurityConfig {
 
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2LoginSuccessHandler successHandler;
+    private final OAuth2LoginFailureHandler failureHandler;
+    private final CorsConfigurationSource corsConfigurationSource;
+    private final boolean csrfEnabled;
+
+    public SecurityConfig(
+            CustomOAuth2UserService customOAuth2UserService,
+            OAuth2LoginSuccessHandler successHandler,
+            OAuth2LoginFailureHandler failureHandler,
+            CorsConfigurationSource corsConfigurationSource,
+            // 로컬 개발 편의를 위해 application-local.yml에서만 false로 덮어쓴다.
+            // H2 콘솔 등 로컬 전용 도구가 CSRF 예외 목록을 매번 따라잡지 않아도 되게 하기 위함.
+            // 운영은 이 값을 건드리지 않으므로 기본값 true(CSRF 활성)가 그대로 적용된다.
+            @Value("${app.security.csrf-enabled:true}") boolean csrfEnabled
+    ) {
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.successHandler = successHandler;
+        this.failureHandler = failureHandler;
+        this.corsConfigurationSource = corsConfigurationSource;
+        this.csrfEnabled = csrfEnabled;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 // 1. REST API 환경이므로 기본 제공되는 UI성 설정들을 비활성화합니다.
-                .csrf(AbstractHttpConfigurer::disable) // CSRF 보호 비활성화 (기본적으로 세션 기반이 아닌 JWT/토큰 기반일 때 필수)
                 .formLogin(AbstractHttpConfigurer::disable) // 기본 로그인 폼 화면 비활성화
                 .httpBasic(AbstractHttpConfigurer::disable) // HTTP Basic 인증 비활성화
 
-                // 2. 세션을 사용하지 않도록 설정 (Stateless 설정)
+                .csrf(csrf -> {
+                    if (!csrfEnabled) {
+                        csrf.disable();
+                        return;
+                    }
+                    // MVP 선택지 A: Refresh Token 쿠키를 SameSite=Lax로 두고
+                    // Refresh/Logout은 TrustedOriginValidator로 Origin을 직접 검증하므로,
+                    // 이 endpoint들은 CSRF 예외로 둔다. h2-console은 자체 로그인 폼이 있어
+                    // Spring Security의 CSRF 토큰을 모르므로 마찬가지로 예외 처리한다.
+                    csrf.ignoringRequestMatchers(
+                            "/oauth2/authorization/kakao",
+                            "/login/oauth2/code/kakao",
+                            "/api/v1/auth/token/refresh",
+                            "/api/v1/auth/logout",
+                            "/h2-console/**"
+                    );
+                })
+
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+
+                // 2. oauth2Login()은 카카오로 갔다가 돌아오는 왕복 요청 사이에 state 값과 원래 요청 정보를 어딘가에 보관해야함
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                )
+
+                .headers(headers ->
+                        headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)
                 )
 
                 // 3. URL별 권한 설정 (인가/Authorization)
@@ -34,23 +85,28 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/actuator/health"
+                                "/actuator/health",
+                                "/h2-console/**",
+                                "/api/v1/auth/**", // 회원가입, 로그인 같은 인증 관련 API도 접근 허용
+                                "/oauth2/authorization/kakao",
+                                "/login/oauth2/code/kakao"
                         ).permitAll()
-
-                        // 회원가입, 로그인 같은 인증 관련 API도 접근 허용 (예시 경로)
-                        .requestMatchers("/api/v1/auth/**")
-                        .permitAll()
-
                         // 그 외 모든 요청은 인증(로그인)을 거쳐야만 접근 가능
                         .anyRequest().authenticated()
+                )
+
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler(successHandler)
+                        .failureHandler(failureHandler)
+                )
+
+                .oauth2ResourceServer(resourceServer ->
+                        resourceServer.jwt(Customizer.withDefaults())
                 );
 
         return http.build();
-    }
-
-    // 4. 비밀번호 암호화를 위한 Encoder 빈 등록 (BCrypt 해시 알고리즘 사용)
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }

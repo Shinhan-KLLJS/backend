@@ -61,6 +61,11 @@ jobs:
           DB_URL=\$(aws ssm get-parameter --name /vision/prod/db-url --query Parameter.Value --output text --region ap-northeast-2)
           DB_USERNAME=\$(aws ssm get-parameter --name /vision/prod/db-username --query Parameter.Value --output text --region ap-northeast-2)
           DB_PASSWORD=\$(aws ssm get-parameter --name /vision/prod/db-password --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          KAKAO_REST_API_KEY=\$(aws ssm get-parameter --name /vision/prod/kakao-rest-api-key --query Parameter.Value --output text --region ap-northeast-2)
+          KAKAO_CLIENT_SECRET=\$(aws ssm get-parameter --name /vision/prod/kakao-client-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          KAKAO_REDIRECT_URI=\$(aws ssm get-parameter --name /vision/prod/kakao-redirect-uri --query Parameter.Value --output text --region ap-northeast-2)
+          APP_FRONTEND_URL=\$(aws ssm get-parameter --name /vision/prod/app-frontend-url --query Parameter.Value --output text --region ap-northeast-2)
+          JWT_SECRET=\$(aws ssm get-parameter --name /vision/prod/jwt-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
           docker pull ${DOCKER_IMAGE}
           docker stop klljs-app || true
           docker rm klljs-app || true
@@ -68,6 +73,11 @@ jobs:
             -e SPRING_DATASOURCE_URL="\$DB_URL" \
             -e SPRING_DATASOURCE_USERNAME="\$DB_USERNAME" \
             -e SPRING_DATASOURCE_PASSWORD="\$DB_PASSWORD" \
+            -e KAKAO_REST_API_KEY="\$KAKAO_REST_API_KEY" \
+            -e KAKAO_CLIENT_SECRET="\$KAKAO_CLIENT_SECRET" \
+            -e KAKAO_REDIRECT_URI="\$KAKAO_REDIRECT_URI" \
+            -e APP_FRONTEND_URL="\$APP_FRONTEND_URL" \
+            -e JWT_SECRET="\$JWT_SECRET" \
             ${DOCKER_IMAGE}
           SCRIPT
 

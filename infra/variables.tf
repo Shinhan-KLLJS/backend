@@ -82,3 +82,42 @@ variable "db_password" {
   type        = string
   sensitive   = true  # 로그/출력에서 숨김
 }
+
+# ──────────────── 카카오 로그인 / 서비스 JWT ────────────────
+variable "kakao_rest_api_key" {
+  description = "카카오 디벨로퍼스 REST API 키 (client-id)"
+  type        = string
+}
+
+variable "kakao_client_secret" {
+  description = "카카오 디벨로퍼스 Client Secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "kakao_redirect_uri" {
+  description = "카카오 콜백 URI (카카오 디벨로퍼스에 등록한 값과 정확히 일치해야 함)"
+  type        = string
+  default     = "https://api.loovi.my/login/oauth2/code/kakao"
+}
+
+variable "app_frontend_url" {
+  description = "로그인 성공/실패 후 리다이렉트할 프론트엔드 주소 (실제 브라우저 접속 origin과 정확히 일치해야 함)"
+  type        = string
+}
+
+variable "vercel_apex_ip" {
+  description = "루트 도메인(root_domain)을 Vercel에 연결하기 위한 A 레코드 값 (Vercel Domains 화면에서 확인)"
+  type        = string
+}
+
+variable "vercel_www_cname_target" {
+  description = "www 서브도메인을 Vercel에 연결하기 위한 CNAME 값 (Vercel Domains 화면에서 확인, 프로젝트마다 다름)"
+  type        = string
+}
+
+variable "jwt_secret" {
+  description = "서비스 JWT 서명용 HMAC 비밀키 (openssl rand -base64 32 등으로 생성, 32바이트 이상)"
+  type        = string
+  sensitive   = true
+}

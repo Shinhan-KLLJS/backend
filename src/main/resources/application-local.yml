@@ -1,4 +1,7 @@
 spring:
+  flyway:
+    enabled: false # 로컬은 Hibernate ddl-auto=create-drop으로 스키마 자동 생성, Flyway는 prod 전용
+
   datasource:
     driver-class-name: org.h2.Driver
     # 인메모리 DB이므로 Docker/DB 서버 없이 바로 실행 가능
@@ -17,3 +20,42 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+  security:
+    oauth2:
+      client:
+        # client-id/secret은 placeholder 기본값이라 실제 카카오 로그인은 안 되지만,
+        # ClientRegistrationRepository 빈이 로컬/테스트에서도 존재해야 oauth2Login()이 컨텍스트 로딩에 실패하지 않는다.
+        # 실제로 로컬에서 브라우저로 카카오 로그인을 끝까지 테스트하려면
+        # KAKAO_REST_API_KEY/KAKAO_CLIENT_SECRET/KAKAO_REDIRECT_URI 환경변수로 진짜 값을 덮어쓴다.
+        registration:
+          kakao:
+            client-id: ${KAKAO_REST_API_KEY:local-dev-placeholder-client-id}
+            client-secret: ${KAKAO_CLIENT_SECRET:local-dev-placeholder-client-secret}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/login/oauth2/code/kakao}
+            client-name: Kakao
+            scope:
+              - profile_nickname
+              - profile_image
+              - account_email
+
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-info-authentication-method: header
+            user-name-attribute: id
+
+app:
+  security:
+    # 로컬 전용 도구(H2 콘솔 등)가 CSRF 토큰을 몰라서 매번 예외 목록을 챙겨야 하는 걸 피하기 위해
+    # 로컬에서는 CSRF 검증 자체를 끈다. 운영은 이 값이 없으니 기본값(true)이 그대로 적용된다.
+    csrf-enabled: false
+
+  auth:
+    jwt:
+      # 로컬 전용 값. 운영은 JWT_SECRET 환경변수가 필수이고 코드에는 기본값이 없어 값이 없으면 기동에 실패한다.
+      secret: local-dev-only-jwt-secret-value-please-rotate

@@ -83,6 +83,28 @@ module "route53" {
 }
 
 # ------------------------------------------------------------
+# 모듈 3-2: Route53 (루트/www 도메인 → Vercel 프론트엔드 연결)
+# api.loovi.my와 같은 호스팅 영역이라 위 module.route53과 zone_id를 공유한다.
+# loovi.my(루트)는 Vercel 쪽에서 www.loovi.my로 308 리다이렉트되도록 이미 설정됨 —
+# 실제 프로덕션 프론트 origin은 www.loovi.my (var.app_frontend_url과 일치해야 함).
+# ------------------------------------------------------------
+resource "aws_route53_record" "frontend_apex" {
+  zone_id = module.route53.zone_id
+  name    = var.root_domain
+  type    = "A"
+  ttl     = 300
+  records = [var.vercel_apex_ip]
+}
+
+resource "aws_route53_record" "frontend_www" {
+  zone_id = module.route53.zone_id
+  name    = "www.${var.root_domain}"
+  type    = "CNAME"
+  ttl     = 300
+  records = [var.vercel_www_cname_target]
+}
+
+# ------------------------------------------------------------
 # 모듈 4: EC2 (Spring Boot)
 # Public subnet에 위치(보안그룹으로 ALB 외 인바운드 차단), ALB Target Group에 등록
 # ------------------------------------------------------------
@@ -118,13 +140,18 @@ module "rds" {
 
 # ------------------------------------------------------------
 # 모듈 6: SSM Parameter Store
-# EC2가 배포 시 SSM Run Command로 조회할 DB 접속정보 저장
+# EC2가 배포 시 SSM Run Command로 조회할 DB 접속정보/카카오·JWT 설정 저장
 # ------------------------------------------------------------
 module "ssm_params" {
   source = "./modules/ssm_params"
 
-  project_name = var.project_name
-  db_url       = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
-  db_username  = var.db_username
-  db_password  = var.db_password
+  project_name        = var.project_name
+  db_url              = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
+  db_username         = var.db_username
+  db_password         = var.db_password
+  kakao_rest_api_key  = var.kakao_rest_api_key
+  kakao_client_secret = var.kakao_client_secret
+  kakao_redirect_uri  = var.kakao_redirect_uri
+  app_frontend_url    = var.app_frontend_url
+  jwt_secret          = var.jwt_secret
 }

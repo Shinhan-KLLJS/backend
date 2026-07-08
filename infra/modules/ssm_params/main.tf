@@ -33,3 +33,53 @@ resource "aws_ssm_parameter" "db_password" {
     Project = var.project_name
   }
 }
+
+resource "aws_ssm_parameter" "kakao_rest_api_key" {
+  name  = "/${var.project_name}/prod/kakao-rest-api-key"
+  type  = "String"
+  value = var.kakao_rest_api_key
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "kakao_client_secret" {
+  name  = "/${var.project_name}/prod/kakao-client-secret"
+  type  = "SecureString"
+  value = var.kakao_client_secret
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "kakao_redirect_uri" {
+  name  = "/${var.project_name}/prod/kakao-redirect-uri"
+  type  = "String"
+  value = var.kakao_redirect_uri
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "app_frontend_url" {
+  name  = "/${var.project_name}/prod/app-frontend-url"
+  type  = "String"
+  value = var.app_frontend_url
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "jwt_secret" {
+  name  = "/${var.project_name}/prod/jwt-secret"
+  type  = "SecureString"
+  value = var.jwt_secret
+
+  tags = {
+    Project = var.project_name
+  }
+}

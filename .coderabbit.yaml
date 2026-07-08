@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "ko-KR"
+early_access: false
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  review_details: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "dev"
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 10
+    ignore_title_keywords:
+      - "WIP"
+      - "[skip review]"
+
+  path_filters:
+    - "!build/**"
+    - "!**/generated/**"
+    - "!gradle/wrapper/**"
+    - "!**/*.class"
+
+  path_instructions:
+    - path: "src/main/java/**/*.java"
+      instructions: |
+        Java 21 및 Spring Boot 프로젝트로 검토한다.
+        컴파일 오류, null 처리, 예외 처리, 트랜잭션 경계, 동시성 문제를 우선 확인한다.
+        과도한 추상화나 단순 스타일 취향보다 실제 장애나 유지보수 위험을 중심으로 지적한다.
+
+    - path: "src/main/java/**/entity/*.java"
+      instructions: |
+        JPA 연관관계의 주인, nullable, unique/index 제약, 지연 로딩과 N+1 가능성을 확인한다.
+        equals/hashCode/toString에서 프록시, 양방향 순환, 변경 가능한 필드 사용 문제를 확인한다.
+        DB generated column은 애플리케이션이 INSERT/UPDATE하지 않는지 확인한다.
+        팀마다 활성 OWNER가 최대 한 명이라는 DB 제약과 역할 이전 흐름이 깨지지 않는지 확인한다.
+
+    - path: "src/main/java/**/security/**/*.java"
+      instructions: |
+        인증과 인가를 구분하고, 요청의 teamId나 userId를 그대로 신뢰하지 않는지 확인한다.
+        팀 OWNER/ADMIN/MEMBER 권한, 카카오 OAuth state 검증, 초대 토큰 검증을 중점적으로 확인한다.
+        토큰, 비밀번호, 사업자등록증 URL 등 민감 정보가 로그나 응답에 노출되지 않는지 확인한다.
+
+    - path: "src/main/java/**/team/**/*.java"
+      instructions: |
+        팀 생성과 OWNER 멤버 생성이 하나의 트랜잭션인지 확인한다.
+        OWNER 권한 이전, 팀원 초대 수락, 초대 used_count 증가가 동시 요청에도 안전한지 확인한다.
+        만료되거나 폐기되었거나 사용 횟수를 초과한 초대 링크가 사용되지 않는지 확인한다.
+
+    - path: "src/main/java/**/vision/**/*.java"
+      instructions: |
+        SQS 중복 전달에 대한 멱등성, seq 초기화, event_time의 UTC 저장을 확인한다.
+        board_id/device_id의 매체 매핑과 event_time 기준 캠페인 귀속이 정확한지 확인한다.
+        OTS/LTS 수치를 단순 합산해 중복 인원을 고유 인원처럼 표현하지 않는지 확인한다.
+        평균 응시시간을 평균값의 단순 평균으로 다시 계산하지 않는지 확인한다.
+
+    - path: "src/main/resources/db/migration/**"
+      instructions: |
+        MySQL 8.0 기준으로 문법, 인덱스, 외래 키, generated column과 unique 제약을 확인한다.
+        운영 데이터가 있는 상태에서 적용 가능한 마이그레이션인지 확인한다.
+        컬럼 삭제, 타입 축소, NOT NULL 추가 등 파괴적 변경에는 안전한 전환 절차가 있는지 확인한다.
+
+    - path: "src/test/**/*.java"
+      instructions: |
+        성공 경로뿐 아니라 인증 실패, 권한 부족, 중복 요청, 만료 토큰, 동시성 경계가 테스트되는지 확인한다.
+        테스트가 구현 세부사항보다 외부 동작과 핵심 비즈니스 규칙을 검증하는지 확인한다.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        GitHub Actions 권한이 최소 권한인지 확인한다.
+        시크릿이 로그에 노출되지 않는지, 외부 Action 버전과 배포 실패 처리가 안전한지 확인한다.
+
+  tools:
+    github-checks:
+      enabled: true
+      timeout_ms: 300000
+
+chat:
+  auto_reply: true
