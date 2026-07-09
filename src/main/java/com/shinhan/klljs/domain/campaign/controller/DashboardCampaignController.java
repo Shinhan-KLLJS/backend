@@ -29,14 +29,16 @@ import java.time.LocalDate;
  */
 @RestController
 @RequiredArgsConstructor
-public class DashboardCampaignController {
+public class DashboardCampaignController implements DashboardCampaignControllerDocs {
 
     private final DashboardCampaignQueryService dashboardCampaignQueryService;
     private final DashboardCampaignDeliveryService dashboardCampaignDeliveryService;
 
     /**
      * 캠페인 목록 조회. keyword/status 둘 다 선택값이라 없으면 전체 목록을 준다.
+     * Swagger 설명은 DashboardCampaignControllerDocs에 몰아뒀다.
      */
+    @Override
     @GetMapping("/api/v1/dashboard/campaigns")
     public ApiResponse<DashboardCampaignListResponse> getCampaigns(
             @AuthenticationPrincipal Jwt jwt,
@@ -55,6 +57,7 @@ public class DashboardCampaignController {
      * @DateTimeFormat으로 "yyyy-MM-dd" 형식을 명시해서, 스펙에 정의된 날짜 형식과
      * 다른 문자열이 오면 Spring이 바인딩 단계에서 바로 400을 내도록 한다.
      */
+    @Override
     @GetMapping("/api/v1/dashboard/campaigns/{campaignId}")
     public ApiResponse<DashboardCampaignDetailResponse> getCampaignDetail(
             @AuthenticationPrincipal Jwt jwt,
@@ -71,6 +74,7 @@ public class DashboardCampaignController {
     /**
      * 캠페인 송출정보 조회(스펙 4절). 상세조회와 쿼리 파라미터/제약이 동일하다.
      */
+    @Override
     @GetMapping("/api/v1/dashboard/campaigns/{campaignId}/delivery")
     public ApiResponse<DashboardCampaignDeliveryResponse> getCampaignDelivery(
             @AuthenticationPrincipal Jwt jwt,

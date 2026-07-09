@@ -26,11 +26,12 @@ import java.time.OffsetDateTime;
  */
 @RestController
 @RequiredArgsConstructor
-public class RealtimeGraphController {
+public class RealtimeGraphController implements RealtimeGraphControllerDocs {
 
     private final RealtimeGraphService realtimeGraphService;
     private final HourlyGraphService hourlyGraphService;
 
+    @Override
     @GetMapping("/api/v1/dashboard/campaigns/{campaignId}/realtime-graph")
     public ApiResponse<RealtimeGraphResponse> getRealtimeGraph(
             @AuthenticationPrincipal Jwt jwt,
@@ -46,7 +47,9 @@ public class RealtimeGraphController {
     /**
      * 5-2. 시간별 누적 그래프. 상세조회/송출정보와 쿼리 파라미터 제약이 동일하다
      * (selected_start_date/selected_end_date 둘 다 필수, "yyyy-MM-dd" 형식).
+     * Swagger 설명은 RealtimeGraphControllerDocs에 몰아뒀다.
      */
+    @Override
     @GetMapping("/api/v1/dashboard/campaigns/{campaignId}/realtime-graph/hourly")
     public ApiResponse<HourlyGraphResponse> getHourlyGraph(
             @AuthenticationPrincipal Jwt jwt,

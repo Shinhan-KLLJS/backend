@@ -22,10 +22,11 @@ import java.time.LocalDate;
  */
 @RestController
 @RequiredArgsConstructor
-public class FunnelController {
+public class FunnelController implements FunnelControllerDocs {
 
     private final FunnelService funnelService;
 
+    @Override
     @GetMapping("/api/v1/dashboard/campaigns/{campaignId}/funnel")
     public ApiResponse<FunnelResponse> getFunnel(
             @AuthenticationPrincipal Jwt jwt,
