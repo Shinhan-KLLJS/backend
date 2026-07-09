@@ -1,11 +1,13 @@
 package com.shinhan.klljs.domain.vision.repository;
 
+import com.shinhan.klljs.domain.vision.dto.AgeGroup;
 import com.shinhan.klljs.domain.vision.entity.VisionSummary5s;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -80,5 +82,153 @@ public interface VisionSummary5sRepository extends JpaRepository<VisionSummary5s
 
     /** sumPopulationInRange()의 결과. exposedPopulationCount=ots_count 합, attentionPopulationCount=lts_count 합. */
     record PopulationSums(long exposedPopulationCount, long attentionPopulationCount) {
+    }
+
+    /**
+     * 평균 시청시간(7절)용. 특정 캠페인의 [fromUtc, toUtc) 구간 전체에 대한 dwell_sum_sec/
+     * lts_count/시청시간 구간별 합계를 DB에서 계산해서 가져온다.
+     */
+    @Query("""
+            select new com.shinhan.klljs.domain.vision.repository.VisionSummary5sRepository$WatchTimeSums(
+                coalesce(sum(v.dwellSumSec), 0), coalesce(sum(v.ltsCount), 0),
+                coalesce(sum(v.dwell1ToUnder2s), 0), coalesce(sum(v.dwell2ToUnder3s), 0),
+                coalesce(sum(v.dwell3ToUnder4s), 0), coalesce(sum(v.dwell4sAndOver), 0))
+            from VisionSummary5s v
+            where v.campaign.id = :campaignId
+              and v.eventTime >= :fromUtc and v.eventTime < :toUtc
+            """)
+    WatchTimeSums sumWatchTimeInRange(
+            @Param("campaignId") Long campaignId,
+            @Param("fromUtc") LocalDateTime fromUtc,
+            @Param("toUtc") LocalDateTime toUtc
+    );
+
+    /** sumWatchTimeInRange()의 결과. dwellSumSec/ltsCount로 가중평균을, dwell*는 시청시간 구간별 분포를 계산하는 데 쓴다. */
+    record WatchTimeSums(
+            BigDecimal dwellSumSec, long ltsCount,
+            long dwell1To2s, long dwell2To3s, long dwell3To4s, long dwellOver4s
+    ) {
+    }
+
+    /**
+     * 성별·연령 시청 비율(7절)용. 특정 캠페인의 [fromUtc, toUtc) 구간 전체에 대한 LTS
+     * 성별·연령 14개 컬럼 합계를 DB에서 계산해서 가져온다 (시간대별로 쪼갤 필요 없음).
+     */
+    @Query("""
+            select new com.shinhan.klljs.domain.vision.repository.VisionSummary5sRepository$DemographicSums(
+                coalesce(sum(v.ltsMaleUnder10), 0), coalesce(sum(v.ltsMale10s), 0), coalesce(sum(v.ltsMale20s), 0),
+                coalesce(sum(v.ltsMale30s), 0), coalesce(sum(v.ltsMale40s), 0), coalesce(sum(v.ltsMale50s), 0),
+                coalesce(sum(v.ltsMale60plus), 0),
+                coalesce(sum(v.ltsFemaleUnder10), 0), coalesce(sum(v.ltsFemale10s), 0), coalesce(sum(v.ltsFemale20s), 0),
+                coalesce(sum(v.ltsFemale30s), 0), coalesce(sum(v.ltsFemale40s), 0), coalesce(sum(v.ltsFemale50s), 0),
+                coalesce(sum(v.ltsFemale60plus), 0))
+            from VisionSummary5s v
+            where v.campaign.id = :campaignId
+              and v.eventTime >= :fromUtc and v.eventTime < :toUtc
+            """)
+    DemographicSums sumDemographicsInRange(
+            @Param("campaignId") Long campaignId,
+            @Param("fromUtc") LocalDateTime fromUtc,
+            @Param("toUtc") LocalDateTime toUtc
+    );
+
+    /** sumDemographicsInRange()의 결과. LTS 성별·연령 14개 컬럼 합계. */
+    record DemographicSums(
+            long maleUnder10, long male10s, long male20s, long male30s, long male40s, long male50s, long male60plus,
+            long femaleUnder10, long female10s, long female20s, long female30s, long female40s, long female50s, long female60plus
+    ) {
+        public long maleTotal() {
+            return maleUnder10 + male10s + male20s + male30s + male40s + male50s + male60plus;
+        }
+
+        public long femaleTotal() {
+            return femaleUnder10 + female10s + female20s + female30s + female40s + female50s + female60plus;
+        }
+
+        public long male(AgeGroup ageGroup) {
+            return switch (ageGroup) {
+                case UNDER_10 -> maleUnder10;
+                case AGE_10S -> male10s;
+                case AGE_20S -> male20s;
+                case AGE_30S -> male30s;
+                case AGE_40S -> male40s;
+                case AGE_50S -> male50s;
+                case AGE_60_PLUS -> male60plus;
+            };
+        }
+
+        public long female(AgeGroup ageGroup) {
+            return switch (ageGroup) {
+                case UNDER_10 -> femaleUnder10;
+                case AGE_10S -> female10s;
+                case AGE_20S -> female20s;
+                case AGE_30S -> female30s;
+                case AGE_40S -> female40s;
+                case AGE_50S -> female50s;
+                case AGE_60_PLUS -> female60plus;
+            };
+        }
+    }
+
+    /**
+     * 시간·연령별 노출도(7절)용. 특정 캠페인의 [fromUtc, toUtc) 구간에 속한 OTS 성별·연령
+     * 14개 컬럼 합계를, UTC 기준 시(hour) 단위로 묶어서 가져온다. 여러 날짜에 걸친 같은
+     * 시간대(예: 이틀치의 14시)를 하나로 합치는 게 목적이라(히트맵은 "하루 중 어느 시간대가
+     * 붐비는지"를 보여주는 것), 날짜는 버리고 시(hour)로만 그룹핑한다.
+     *
+     * hourOfDayUtc는 UTC 기준 시(0~23)다 - KST 기준 시(hour-of-day)로 바꾸려면 서비스
+     * 계층에서 (hourOfDayUtc + 9) % 24를 계산해야 한다. 그룹핑 경계 자체는 UTC로 끊든
+     * KST로 끊든 동일하지만(KstDateTimes 클래스 주석 참고), "몇 시"라는 라벨 값 자체는
+     * KST와 UTC가 9시간 차이나므로 반드시 변환해야 한다.
+     */
+    @Query("""
+            select new com.shinhan.klljs.domain.vision.repository.VisionSummary5sRepository$OtsHourSums(
+                hour(v.eventTime),
+                coalesce(sum(v.otsMaleUnder10), 0), coalesce(sum(v.otsMale10s), 0), coalesce(sum(v.otsMale20s), 0),
+                coalesce(sum(v.otsMale30s), 0), coalesce(sum(v.otsMale40s), 0), coalesce(sum(v.otsMale50s), 0),
+                coalesce(sum(v.otsMale60plus), 0),
+                coalesce(sum(v.otsFemaleUnder10), 0), coalesce(sum(v.otsFemale10s), 0), coalesce(sum(v.otsFemale20s), 0),
+                coalesce(sum(v.otsFemale30s), 0), coalesce(sum(v.otsFemale40s), 0), coalesce(sum(v.otsFemale50s), 0),
+                coalesce(sum(v.otsFemale60plus), 0))
+            from VisionSummary5s v
+            where v.campaign.id = :campaignId
+              and v.eventTime >= :fromUtc and v.eventTime < :toUtc
+            group by hour(v.eventTime)
+            """)
+    List<OtsHourSums> sumOtsByHourOfDay(
+            @Param("campaignId") Long campaignId,
+            @Param("fromUtc") LocalDateTime fromUtc,
+            @Param("toUtc") LocalDateTime toUtc
+    );
+
+    /** sumOtsByHourOfDay()의 결과 한 행. hourOfDayUtc는 UTC 기준 시(0~23) - KST 변환은 서비스 계층 책임. */
+    record OtsHourSums(
+            int hourOfDayUtc,
+            long maleUnder10, long male10s, long male20s, long male30s, long male40s, long male50s, long male60plus,
+            long femaleUnder10, long female10s, long female20s, long female30s, long female40s, long female50s, long female60plus
+    ) {
+        public long male(AgeGroup ageGroup) {
+            return switch (ageGroup) {
+                case UNDER_10 -> maleUnder10;
+                case AGE_10S -> male10s;
+                case AGE_20S -> male20s;
+                case AGE_30S -> male30s;
+                case AGE_40S -> male40s;
+                case AGE_50S -> male50s;
+                case AGE_60_PLUS -> male60plus;
+            };
+        }
+
+        public long female(AgeGroup ageGroup) {
+            return switch (ageGroup) {
+                case UNDER_10 -> femaleUnder10;
+                case AGE_10S -> female10s;
+                case AGE_20S -> female20s;
+                case AGE_30S -> female30s;
+                case AGE_40S -> female40s;
+                case AGE_50S -> female50s;
+                case AGE_60_PLUS -> female60plus;
+            };
+        }
     }
 }

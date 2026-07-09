@@ -5,6 +5,7 @@ import com.shinhan.klljs.domain.campaign.dto.PeriodStatus;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.service.DashboardCampaignQueryService;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver;
+import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.AggregationWindow;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.CampaignPeriodContext;
 import com.shinhan.klljs.domain.vision.dto.FunnelResponse;
 import com.shinhan.klljs.domain.vision.repository.VisionSummary5sRepository;
@@ -68,17 +69,10 @@ public class FunnelService {
         PeriodRange effectivePeriod = periodContext.effectivePeriod();
         LocalDate today = KstDateTimes.todayKst(nowUtc);
 
-        LocalDateTime fromUtc = KstDateTimes.toUtc(effectivePeriod.startDate().atStartOfDay());
-        LocalDateTime toUtc;
-        if (effectivePeriod.endDate().isBefore(today)) {
-            // effectivePeriod가 완전히 과거 -> 구간 전체가 이미 확정된 데이터.
-            toUtc = KstDateTimes.kstRangeUtc(effectivePeriod.startDate(), effectivePeriod.endDate()).endUtc();
-        } else {
-            // effectivePeriod에 오늘(또는 그 이후)이 포함됨 -> 지금 진행 중인 분은 아직 5초 데이터가
-            // 다 안 모였을 수 있으니 제외한다 (7절 평균 시청시간과 같은 규칙, aggregationUnit=MINUTE).
-            toUtc = nowUtc.truncatedTo(ChronoUnit.MINUTES);
-        }
-        OffsetDateTime aggregationCutoffTime = KstDateTimes.toKstOffset(toUtc);
+        // 조회 범위/커서 계산은 5-2/6/7절이 전부 공유하는 규칙이라 CampaignPeriodResolver로 뺐다.
+        AggregationWindow window = CampaignPeriodResolver.resolveAggregationWindow(effectivePeriod, today, nowUtc, ChronoUnit.MINUTES);
+        LocalDateTime fromUtc = window.fromUtc();
+        LocalDateTime toUtc = window.toUtc();
 
         PopulationSums todaySums = visionSummary5sRepository.sumPopulationInRange(campaign.getId(), fromUtc, toUtc);
 
@@ -110,7 +104,7 @@ public class FunnelService {
 
         return new FunnelResponse(
                 campaign.getId(), periodContext.selectedPeriod(), effectivePeriod, periodContext.periodStatus(),
-                serverTime, AGGREGATION_UNIT, aggregationCutoffTime, REFRESH_INTERVAL_SEC,
+                serverTime, AGGREGATION_UNIT, window.cutoffTime(), REFRESH_INTERVAL_SEC,
                 mockTrafficArea(campaign, effectivePeriod),
                 new FunnelResponse.Metrics(totalTrafficMetric, exposedMetric, attentionMetric, conversionMetric)
         );

@@ -5,8 +5,12 @@ import com.shinhan.klljs.domain.campaign.dto.PeriodStatus;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.exception.CampaignErrorCode;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
+import com.shinhan.klljs.global.util.KstDateTimes;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 
 /**
  * 스펙 0절 "기간 처리 규칙"을 구현한 공용 유틸리티.
@@ -64,5 +68,38 @@ public final class CampaignPeriodResolver {
             PeriodRange effectivePeriod, // BEFORE_EXECUTION일 때만 null
             PeriodStatus periodStatus
     ) {
+    }
+
+    /**
+     * effectivePeriod(BEFORE_EXECUTION이 아닐 때)를 실제 DB 조회 범위([fromUtc, toUtc))와
+     * aggregationCutoffTime으로 변환한다. 5-2(시간별 누적 그래프)/6(깔대기)/7절(평균 시청시간,
+     * 성별연령비율, 시간연령노출도)이 전부 같은 규칙을 쓴다 - 유일한 차이는 "진행 중인 구간"을
+     * 얼마나 잘게 자르는지(분 단위 vs 시간 단위)뿐이라 truncationUnit으로 받는다.
+     *
+     * 규칙:
+     * - effectivePeriod가 완전히 과거(끝난 날짜 < 오늘)면 effectivePeriod 전체가 조회 대상이고,
+     *   toUtc는 effectivePeriod 마지막 날 다음날 00:00(KST)이다 - 이미 다 지난 날이라 재조회해도
+     *   값이 안 바뀐다.
+     * - effectivePeriod에 오늘(또는 그 이후)이 포함되면, 지금 진행 중인 구간(분/시간)은 아직
+     *   5초 데이터가 다 안 모였을 수 있으니 제외한다 - toUtc는 "지금"을 truncationUnit
+     *   단위로 절삭한 시각(=진행 중인 구간의 시작 시각)이다.
+     * - aggregationCutoffTime은 toUtc를 KST로 보여준 값 그 자체다(배타적 상한 - 0절 "집계 기준 시각" 정의 참고).
+     *
+     * @param today KstDateTimes.todayKst(nowUtc)로 미리 계산해서 넘긴다 (호출부에서 이미 필요한 경우가 많아 중복 계산 방지)
+     */
+    public static AggregationWindow resolveAggregationWindow(
+            PeriodRange effectivePeriod, LocalDate today, LocalDateTime nowUtc, ChronoUnit truncationUnit
+    ) {
+        LocalDateTime fromUtc = KstDateTimes.toUtc(effectivePeriod.startDate().atStartOfDay());
+
+        LocalDateTime toUtc = effectivePeriod.endDate().isBefore(today)
+                ? KstDateTimes.kstRangeUtc(effectivePeriod.startDate(), effectivePeriod.endDate()).endUtc()
+                : nowUtc.truncatedTo(truncationUnit);
+
+        return new AggregationWindow(fromUtc, toUtc, KstDateTimes.toKstOffset(toUtc));
+    }
+
+    /** resolveAggregationWindow()의 결과. fromUtc/toUtc는 DB 조회에, cutoffTime은 응답의 aggregationCutoffTime에 그대로 쓴다. */
+    public record AggregationWindow(LocalDateTime fromUtc, LocalDateTime toUtc, OffsetDateTime cutoffTime) {
     }
 }

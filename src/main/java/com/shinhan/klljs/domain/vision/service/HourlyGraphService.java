@@ -5,6 +5,7 @@ import com.shinhan.klljs.domain.campaign.dto.PeriodStatus;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.service.DashboardCampaignQueryService;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver;
+import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.AggregationWindow;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.CampaignPeriodContext;
 import com.shinhan.klljs.domain.vision.dto.HourlyGraphResponse;
 import com.shinhan.klljs.domain.vision.entity.VisionSummary5s;
@@ -66,31 +67,16 @@ public class HourlyGraphService {
         PeriodRange effectivePeriod = periodContext.effectivePeriod();
         LocalDate today = KstDateTimes.todayKst(nowUtc);
 
-        LocalDateTime fromUtc = KstDateTimes.toUtc(effectivePeriod.startDate().atStartOfDay());
-        LocalDateTime toUtc;
+        // 조회 범위/커서 계산은 5-2/6/7절이 전부 공유하는 규칙이라 CampaignPeriodResolver로 뺐다
+        // (오늘이 포함되면 "지금 진행 중인 시간대"는 제외, 완전히 과거면 구간 전체 포함).
+        AggregationWindow window = CampaignPeriodResolver.resolveAggregationWindow(effectivePeriod, today, nowUtc, ChronoUnit.HOURS);
 
-        if (effectivePeriod.endDate().isBefore(today)) {
-            // effectivePeriod가 완전히 과거 -> 그 구간 전체가 이미 다 지난 확정 데이터이므로
-            // effectivePeriod 끝(다음날 00:00 직전)까지 전부 조회 대상이다. 재조회해도 이 범위
-            // 자체는 더 바뀌지 않는다 (스펙 5-2절 "완전히 과거 기간이면... 재조회가 사실상 불필요").
-            toUtc = KstDateTimes.kstRangeUtc(effectivePeriod.startDate(), effectivePeriod.endDate()).endUtc();
-        } else {
-            // effectivePeriod에 오늘(또는 그 이후)이 포함됨 -> 지금 진행 중인 시간대는 5초 데이터가
-            // 아직 다 안 모였을 수 있으니 제외한다. 조회 상한을 "지금 진행 중인 시간의 시작 시각"으로
-            // 잘라서, 그 이전(완전히 끝난 시간대)까지만 집계 대상으로 삼는다.
-            toUtc = nowUtc.truncatedTo(ChronoUnit.HOURS);
-        }
-
-        // aggregationCutoffTime = 조회 상한 그 자체를 KST로 보여준 값이다. "이 시각 이전 데이터까지
-        // 포함됐다"는 배타적 상한이라(0절 "집계 기준 시각" 정의 참고), 별도 보정 없이 toUtc를 그대로 쓴다.
-        OffsetDateTime aggregationCutoffTime = KstDateTimes.toKstOffset(toUtc);
-
-        List<VisionSummary5s> rows = visionSummary5sRepository.findAllInRange(campaign.getId(), fromUtc, toUtc);
+        List<VisionSummary5s> rows = visionSummary5sRepository.findAllInRange(campaign.getId(), window.fromUtc(), window.toUtc());
         List<HourlyGraphResponse.Point> points = aggregateByHour(rows);
 
         return new HourlyGraphResponse(
                 campaign.getId(), periodContext.selectedPeriod(), effectivePeriod, periodContext.periodStatus(),
-                serverTime, AGGREGATION_UNIT, aggregationCutoffTime, REFRESH_INTERVAL_SEC, points
+                serverTime, AGGREGATION_UNIT, window.cutoffTime(), REFRESH_INTERVAL_SEC, points
         );
     }
 
