@@ -2,6 +2,7 @@ package com.shinhan.klljs.global.util;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 /**
@@ -26,6 +27,18 @@ public final class KstDateTimes {
         return utc.atOffset(ZoneOffset.UTC)
                 .withOffsetSameInstant(KST)
                 .toLocalDateTime();
+    }
+
+    /**
+     * UTC LocalDateTime -> KST OffsetDateTime. API 응답의 serverTime/aggregationCutoffTime/
+     * lastEventTime/nextPollAfter 등, 스펙에서 "+09:00"이 붙은 KST ISO-8601 문자열로
+     * 내려주기로 정한 필드에 쓴다 (예: "2026-07-07T16:43:25+09:00"). Jackson jsr310 모듈이
+     * OffsetDateTime을 기본적으로 이 형식 그대로 직렬화해주므로 별도 포맷팅이 필요 없다.
+     * toKst()가 반환하는 LocalDateTime은 오프셋 정보가 없어 그대로 직렬화하면 "+09:00"이
+     * 안 붙으므로, 응답 필드에는 toKst() 대신 이 메서드를 쓴다.
+     */
+    public static OffsetDateTime toKstOffset(LocalDateTime utc) {
+        return utc.atOffset(ZoneOffset.UTC).withOffsetSameInstant(KST);
     }
 
     /** KST LocalDateTime -> UTC LocalDateTime (DB 조회 조건에 사용) */

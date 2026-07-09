@@ -1,8 +1,10 @@
 package com.shinhan.klljs.domain.campaign.controller;
 
+import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignDeliveryResponse;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignDetailResponse;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignListResponse;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
+import com.shinhan.klljs.domain.campaign.service.DashboardCampaignDeliveryService;
 import com.shinhan.klljs.domain.campaign.service.DashboardCampaignQueryService;
 import com.shinhan.klljs.global.apiPayload.ApiResponse;
 import com.shinhan.klljs.global.apiPayload.code.GeneralSuccessCode;
@@ -18,9 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 
 /**
- * 홈 대시보드의 캠페인 목록/상세 조회 API. 스펙 문서(docs/home-dashboard-api-spec.md) 2절, 3절.
+ * 홈 대시보드의 캠페인 목록/상세/송출정보 조회 API. 스펙 문서(docs/home-dashboard-api-spec.md) 2, 3, 4절.
  *
- * 두 엔드포인트 모두 SecurityConfig의 anyRequest().authenticated() 규칙으로 보호되므로
+ * 모든 엔드포인트가 SecurityConfig의 anyRequest().authenticated() 규칙으로 보호되므로
  * (permitAll 목록에 없음) JWT 없이 호출하면 이 컨트롤러에 들어오기 전에 401로 막힌다.
  * @AuthenticationPrincipal Jwt jwt로 이미 서명 검증이 끝난 JWT를 그대로 받고,
  * jwt.getSubject()가 로그인 시 발급한 내부 사용자 ID(문자열)라서 Long으로 파싱해서 쓴다.
@@ -30,6 +32,7 @@ import java.time.LocalDate;
 public class DashboardCampaignController {
 
     private final DashboardCampaignQueryService dashboardCampaignQueryService;
+    private final DashboardCampaignDeliveryService dashboardCampaignDeliveryService;
 
     /**
      * 캠페인 목록 조회. keyword/status 둘 다 선택값이라 없으면 전체 목록을 준다.
@@ -61,6 +64,22 @@ public class DashboardCampaignController {
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
         DashboardCampaignDetailResponse response = dashboardCampaignQueryService.getCampaignDetail(
+                userId, campaignId, selectedStartDate, selectedEndDate);
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, response);
+    }
+
+    /**
+     * 캠페인 송출정보 조회(스펙 4절). 상세조회와 쿼리 파라미터/제약이 동일하다.
+     */
+    @GetMapping("/api/v1/dashboard/campaigns/{campaignId}/delivery")
+    public ApiResponse<DashboardCampaignDeliveryResponse> getCampaignDelivery(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long campaignId,
+            @RequestParam("selected_start_date") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate selectedStartDate,
+            @RequestParam("selected_end_date") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate selectedEndDate
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        DashboardCampaignDeliveryResponse response = dashboardCampaignDeliveryService.getDelivery(
                 userId, campaignId, selectedStartDate, selectedEndDate);
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, response);
     }
