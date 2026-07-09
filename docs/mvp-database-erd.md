@@ -92,6 +92,7 @@ erDiagram
         varchar representative_name
         varchar business_type
         varchar business_address
+        date business_opening_date
         varchar document_storage_key
         varchar verification_status
     }
@@ -118,6 +119,9 @@ erDiagram
         decimal longitude
         int width_mm
         int height_mm
+        int resolution_width_px
+        int resolution_height_px
+        json shape_types
         varchar status
     }
 
@@ -286,6 +290,7 @@ CREATE UNIQUE INDEX ux_team_members_one_active_owner ON team_members(active_owne
 | `representative_name` | `VARCHAR(100)` | X | 대표자명 |
 | `business_type` | `VARCHAR(100)` | X | 업태 |
 | `business_address` | `VARCHAR(500)` | X | 사업장 소재지 |
+| `business_opening_date` | `DATE` | X | 개업일 |
 | `document_storage_key` | `VARCHAR(1024)` | O | 비공개 스토리지 객체 키 |
 | `verification_status` | `VARCHAR(20)` | O | `PENDING`, `APPROVED`, `REJECTED` |
 | `rejection_reason` | `VARCHAR(1000)` | X | 반려 사유 |
@@ -354,16 +359,19 @@ Vision 장비는 매체에 내장된 것으로 가정하므로 `board_code`와 `
 | `board_code` | `VARCHAR(100)` | O | Vision 메시지의 `board_id`, `UNIQUE` |
 | `device_code` | `VARCHAR(100)` | O | Vision 메시지의 `device_id`, `UNIQUE` |
 | `media_name` | `VARCHAR(200)` | O | 매체 이름 |
-| `photo_url` | `VARCHAR(2048)` | X | 매체 사진 URL |
+| `photo_url` | `VARCHAR(2048)` | O | 매체 사진 URL |
 | `location_address` | `VARCHAR(500)` | O | 매체 주소 |
 | `latitude` | `DECIMAL(10,7)` | X | 지도 표시용 위도 |
 | `longitude` | `DECIMAL(10,7)` | X | 지도 표시용 경도 |
-| `width_mm` | `INT UNSIGNED` | X | 매체 가로 크기 |
-| `height_mm` | `INT UNSIGNED` | X | 매체 세로 크기 |
+| `width_mm` | `INT UNSIGNED` | O | 매체 가로 크기(mm), 0보다 커야 함 |
+| `height_mm` | `INT UNSIGNED` | O | 매체 세로 크기(mm), 0보다 커야 함 |
+| `resolution_width_px` | `INT UNSIGNED` | O | 화면 해상도 가로(px), 0보다 커야 함 |
+| `resolution_height_px` | `INT UNSIGNED` | O | 화면 해상도 세로(px), 0보다 커야 함 |
+| `shape_types` | `JSON` | O | 매체 형태 배열. 예: `["FLAT", "VERTICAL"]`; 허용값은 `FLAT`, `VERTICAL`, `CORNER` |
 | `status` | `VARCHAR(20)` | O | `ACTIVE`, `INACTIVE`, `MAINTENANCE` |
 | `created_at`, `updated_at` | `DATETIME(3)` | O | 생성·수정 시각 |
 
-매체 크기는 문자열 한 개가 아니라 가로·세로 숫자로 저장하고 단위는 mm로 통일한다.
+매체 크기는 문자열 한 개가 아니라 가로·세로 숫자로 저장하고 단위는 mm로 통일한다. 해상도는 물리 규격과 별도인 px 단위 숫자로 저장한다. 매체 형태는 MVP에서 별도 테이블을 두지 않고 `shape_types` JSON 배열 한 컬럼으로 저장한다.
 
 ### `campaigns`
 

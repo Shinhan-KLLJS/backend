@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * 5-1. 실시간 그래프 API(스펙 5-1절)를 처리한다. 이 API는 항상 서버 기준 오늘(KST)만 조회하고
  * (selected_date 파라미터 자체가 없다 - 컨트롤러 문서 참고), 과거/미래 날짜는 다루지 않는다.
- * 과거 데이터는 5-2 API(DashboardVisionTrendService, 아직 미구현)가 담당한다.
+ * 과거 데이터는 5-2 API(HourlyGraphService)가 담당한다.
  */
 @Service
 @RequiredArgsConstructor

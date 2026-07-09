@@ -55,6 +55,18 @@ public final class KstDateTimes {
         return new UtcRange(startUtc, endUtc);
     }
 
+    /**
+     * kstDayRangeUtc()의 여러 날짜 버전. [startDate, endDateInclusive](둘 다 KST 달력 날짜,
+     * 양끝 포함) 구간 전체를 [시작일 00:00, 종료일 다음날 00:00) UTC 범위로 변환한다.
+     * 캠페인 집행/선택 기간처럼 "시작일~종료일"로 표현되는 기간을 그대로 DB 조회 범위로
+     * 바꿀 때 쓴다 (예: 5-2절 시간별 누적 그래프처럼 하루를 넘는 기간을 한 번에 조회하는 API).
+     */
+    public static UtcRange kstRangeUtc(LocalDate startDate, LocalDate endDateInclusive) {
+        LocalDateTime startUtc = toUtc(startDate.atStartOfDay());
+        LocalDateTime endUtc = toUtc(endDateInclusive.plusDays(1).atStartOfDay());
+        return new UtcRange(startUtc, endUtc);
+    }
+
     public record UtcRange(LocalDateTime startUtc, LocalDateTime endUtc) {
     }
 }
