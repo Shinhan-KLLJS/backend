@@ -54,6 +54,11 @@ app:
       access-token-ttl-seconds: 900
       refresh-token-ttl-seconds: 1209600
 
+  vision:
+    sqs:
+      queue-url: ${VISION_SQS_QUEUE_URL}
+      consumer-enabled: true
+
 logging:
   level:
     root: info
