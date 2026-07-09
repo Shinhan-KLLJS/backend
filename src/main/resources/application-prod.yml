@@ -45,6 +45,7 @@ spring:
 
 app:
   frontend-url: ${APP_FRONTEND_URL}
+  swagger-origin: ${APP_SWAGGER_ORIGIN:https://api.loovi.my}
 
   auth:
     jwt:
