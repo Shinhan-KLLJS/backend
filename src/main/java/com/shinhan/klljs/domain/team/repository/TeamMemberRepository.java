@@ -1,6 +1,7 @@
 package com.shinhan.klljs.domain.team.repository;
 
 import com.shinhan.klljs.domain.team.entity.TeamMember;
+import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
 import com.shinhan.klljs.domain.team.entity.TeamMemberStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -31,4 +32,24 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
      * findTeamIdsByUserIdAndStatus처럼 전체 팀 목록을 다 가져올 필요가 없어 더 가볍다.
      */
     boolean existsByUserIdAndTeamIdAndStatus(Long userId, Long teamId, TeamMemberStatus status);
+
+    /**
+     * 이 사용자가 ACTIVE로 속한 팀들의 요약 정보(팀 ID/팀명/역할)를 조회한다.
+     * /users/me 응답에서 "이 사용자가 어느 팀에 속해 있는지"를 팀명·역할까지 보여줄 때 쓴다 -
+     * findTeamIdsByUserIdAndStatus()는 ID만 주기 때문에, 화면에 표시할 이름까지 필요하면 이 메서드를 쓴다.
+     * 가입 순서(joinedAt asc)로 정렬해서, 가장 먼저 합류한 팀이 목록 맨 앞에 오게 한다.
+     */
+    @Query("""
+            select new com.shinhan.klljs.domain.team.repository.TeamMemberRepository$TeamMembershipSummary(
+                tm.team.id, tm.team.teamName, tm.role)
+            from TeamMember tm
+            where tm.user.id = :userId and tm.status = :status
+            order by tm.joinedAt asc
+            """)
+    List<TeamMembershipSummary> findTeamMembershipSummariesByUserIdAndStatus(
+            @Param("userId") Long userId, @Param("status") TeamMemberStatus status);
+
+    /** findTeamMembershipSummariesByUserIdAndStatus()의 결과 한 건. */
+    record TeamMembershipSummary(Long teamId, String teamName, TeamMemberRole role) {
+    }
 }
