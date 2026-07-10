@@ -1,0 +1,122 @@
+package com.shinhan.klljs.domain.team.service;
+
+import com.shinhan.klljs.domain.team.dto.TeamInviteCodeResponse;
+import com.shinhan.klljs.domain.team.entity.Team;
+import com.shinhan.klljs.domain.team.entity.TeamInviteLink;
+import com.shinhan.klljs.domain.team.entity.TeamMember;
+import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
+import com.shinhan.klljs.domain.team.entity.TeamMemberStatus;
+import com.shinhan.klljs.domain.team.entity.TeamStatus;
+import com.shinhan.klljs.domain.team.exception.TeamErrorCode;
+import com.shinhan.klljs.domain.team.repository.TeamInviteLinkRepository;
+import com.shinhan.klljs.domain.user.entity.User;
+import com.shinhan.klljs.domain.user.entity.UserStatus;
+import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
+import com.shinhan.klljs.global.util.TokenHasher;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@SpringBootTest
+@Transactional
+class TeamInviteCodeIntegrationTest {
+
+    @Autowired
+    private TeamInviteCodeService service;
+
+    @Autowired
+    private TeamInviteLinkRepository inviteRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Test
+    void issue_createsHashedInviteAndReturnsPlainCodeOnce() {
+        Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.OWNER);
+
+        TeamInviteCodeResponse response = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
+
+        assertThat(response.inviteCode()).matches("[A-Z0-9]{7}");
+        assertThat(response.inviteCodeExpiresAt().getOffset().getTotalSeconds()).isEqualTo(9 * 60 * 60);
+
+        TeamInviteLink saved = inviteRepository.findByTeamIdAndRevokedAtIsNull(fixture.team().getId()).orElseThrow();
+        assertThat(saved.getTokenHash()).isEqualTo(TokenHasher.sha256(response.inviteCode()));
+    }
+
+    @Test
+    void issue_revokesPreviousInviteAndLeavesOneActiveCode() {
+        Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.ADMIN);
+
+        TeamInviteCodeResponse first = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
+        TeamInviteCodeResponse second = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
+        entityManager.flush();
+
+        List<TeamInviteLink> teamInvites = inviteRepository.findAll().stream()
+                .filter(invite -> invite.getTeam().getId().equals(fixture.team().getId()))
+                .toList();
+        assertThat(teamInvites).hasSize(2);
+        assertThat(teamInvites).filteredOn(invite -> invite.getRevokedAt() == null).hasSize(1);
+        assertThat(first.inviteCode()).isNotEqualTo(second.inviteCode());
+    }
+
+    @Test
+    void issue_rejectsMemberRole() {
+        Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.MEMBER);
+
+        assertTeamError(
+                () -> service.issue(fixture.member().getUser().getId(), fixture.team().getId()),
+                TeamErrorCode.TEAM_MANAGEMENT_FORBIDDEN
+        );
+    }
+
+    @Test
+    void issue_rejectsInactiveTeam() {
+        Fixture fixture = persistFixture(TeamStatus.SUSPENDED, TeamMemberRole.OWNER);
+
+        assertTeamError(
+                () -> service.issue(fixture.member().getUser().getId(), fixture.team().getId()),
+                TeamErrorCode.TEAM_NOT_ACTIVE
+        );
+    }
+
+    private Fixture persistFixture(TeamStatus teamStatus, TeamMemberRole role) {
+        Team team = Team.builder().teamName("초대 테스트 " + System.nanoTime()).status(teamStatus).build();
+        entityManager.persist(team);
+
+        User user = User.builder()
+                .displayName("초대자")
+                .email("inviter@example.com")
+                .status(UserStatus.ACTIVE)
+                .build();
+        entityManager.persist(user);
+
+        TeamMember member = TeamMember.builder()
+                .team(team)
+                .user(user)
+                .role(role)
+                .status(TeamMemberStatus.ACTIVE)
+                .joinedAt(LocalDateTime.of(2026, 7, 10, 0, 0))
+                .build();
+        entityManager.persist(member);
+        entityManager.flush();
+        return new Fixture(team, member);
+    }
+
+    private void assertTeamError(Runnable invocation, TeamErrorCode errorCode) {
+        assertThatThrownBy(invocation::run)
+                .isInstanceOf(GeneralException.class)
+                .satisfies(exception -> assertThat(((GeneralException) exception).getErrorCode())
+                        .isEqualTo(errorCode));
+    }
+
+    private record Fixture(Team team, TeamMember member) {
+    }
+}
