@@ -39,7 +39,7 @@ class UserQueryServiceTest {
     private TeamMemberRepository teamMemberRepository;
 
     @Test
-    void getMe_returnsUserInfoWithEmptyTeamsWhenNoTeam() {
+    void getMe_returnsHasTeamFalseAndNullTeamIdWhenNoTeam() {
         User user = userRepository.save(
                 User.builder().displayName("철수").email("chulsoo@example.com").status(UserStatus.ACTIVE).build()
         );
@@ -48,7 +48,8 @@ class UserQueryServiceTest {
 
         assertThat(result.id()).isEqualTo(user.getId());
         assertThat(result.displayName()).isEqualTo("철수");
-        assertThat(result.teams()).isEmpty();
+        assertThat(result.hasTeam()).isFalse();
+        assertThat(result.teamId()).isNull();
     }
 
     @Test
@@ -58,7 +59,7 @@ class UserQueryServiceTest {
     }
 
     @Test
-    void getMe_includesActiveTeamMembershipsWithNameAndRole() {
+    void getMe_returnsHasTeamTrueAndTeamIdWhenActiveMember() {
         User user = userRepository.save(
                 User.builder().displayName("철수").email("chulsoo@example.com").status(UserStatus.ACTIVE).build()
         );
@@ -70,10 +71,8 @@ class UserQueryServiceTest {
 
         UserMeResponse result = userQueryService.getMe(user.getId());
 
-        assertThat(result.teams()).hasSize(1);
-        assertThat(result.teams().get(0).teamId()).isEqualTo(team.getId());
-        assertThat(result.teams().get(0).teamName()).isEqualTo("팀A");
-        assertThat(result.teams().get(0).role()).isEqualTo(TeamMemberRole.OWNER);
+        assertThat(result.hasTeam()).isTrue();
+        assertThat(result.teamId()).isEqualTo(team.getId());
     }
 
     @Test
@@ -90,6 +89,7 @@ class UserQueryServiceTest {
         UserMeResponse result = userQueryService.getMe(user.getId());
 
         // 탈퇴(LEFT)한 팀은 한때 소속이었어도 더 이상 "소속 팀"으로 보이면 안 된다.
-        assertThat(result.teams()).isEmpty();
+        assertThat(result.hasTeam()).isFalse();
+        assertThat(result.teamId()).isNull();
     }
 }

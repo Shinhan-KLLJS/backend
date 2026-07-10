@@ -58,7 +58,8 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.result.id").value(user.getId()))
                 .andExpect(jsonPath("$.result.displayName").value("철수"))
                 .andExpect(jsonPath("$.result.email").value("chulsoo@example.com"))
-                .andExpect(jsonPath("$.result.teams").isEmpty());
+                .andExpect(jsonPath("$.result.hasTeam").value(false))
+                .andExpect(jsonPath("$.result.teamId").doesNotExist());
     }
 
     @Test
@@ -76,9 +77,8 @@ class UserControllerTest {
         mockMvc.perform(get("/api/v1/users/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.teams[0].teamId").value(team.getId()))
-                .andExpect(jsonPath("$.result.teams[0].teamName").value("팀A"))
-                .andExpect(jsonPath("$.result.teams[0].role").value("OWNER"));
+                .andExpect(jsonPath("$.result.hasTeam").value(true))
+                .andExpect(jsonPath("$.result.teamId").value(team.getId()));
     }
 
     @Test

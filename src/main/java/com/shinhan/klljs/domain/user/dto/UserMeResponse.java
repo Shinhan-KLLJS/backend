@@ -1,24 +1,28 @@
 package com.shinhan.klljs.domain.user.dto;
 
-import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
-import com.shinhan.klljs.domain.team.repository.TeamMemberRepository.TeamMembershipSummary;
 import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.entity.UserStatus;
 
 import java.util.List;
 
+/**
+ * hasTeam/teamId는 현재 "사용자는 팀 하나에만 속한다"는 단순화된 가정 하의 필드다 -
+ * 여러 ACTIVE 팀에 속한 사용자라도(TeamMemberRepository 주석 참고, 데이터 모델 자체는 다대다를 허용한다)
+ * findTeamIdsByUserIdAndStatus()가 돌려주는 목록의 첫 번째 값만 대표로 사용한다.
+ * 다중 팀 소속을 프론트에 온전히 노출해야 하는 시점이 오면, 이 응답을 배열 형태로 다시 넓혀야 한다.
+ */
 public record UserMeResponse(
         Long id,
         String displayName,
         String email,
         String profileImageUrl,
         UserStatus status,
-        List<TeamMembership> teams
+        boolean hasTeam,
+        Long teamId
 ) {
-    public static UserMeResponse from(User user, List<TeamMembershipSummary> teamMemberships) {
-        List<TeamMembership> teams = teamMemberships.stream()
-                .map(t -> new TeamMembership(t.teamId(), t.teamName(), t.role()))
-                .toList();
+    public static UserMeResponse from(User user, List<Long> teamIds) {
+        boolean hasTeam = !teamIds.isEmpty();
+        Long teamId = hasTeam ? teamIds.get(0) : null;
 
         return new UserMeResponse(
                 user.getId(),
@@ -26,17 +30,8 @@ public record UserMeResponse(
                 user.getEmail(),
                 user.getProfileImageUrl(),
                 user.getStatus(),
-                teams
+                hasTeam,
+                teamId
         );
-    }
-
-    /**
-     * 사용자가 ACTIVE로 속한 팀 하나. teams가 빈 배열이면 소속된 팀이 없다는 뜻이다 -
-     * 프론트는 이 배열의 비어있음 여부로 "팀 생성/합류" 온보딩 화면을 보여줄지 판단하면 된다.
-     * 팀 소속 정보는 JWT에는 넣지 않고 항상 이 API로 최신 상태를 조회한다
-     * (액세스 토큰이 15분간 유효해서, 토큰에 넣으면 그 사이의 팀 생성/합류/탈퇴가
-     * 최대 15분간 반영 안 된 채로 보일 수 있다 - JwtTokenService 클래스 주석 참고).
-     */
-    public record TeamMembership(Long teamId, String teamName, TeamMemberRole role) {
     }
 }
