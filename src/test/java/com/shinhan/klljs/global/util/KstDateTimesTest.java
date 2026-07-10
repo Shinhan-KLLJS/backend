@@ -40,6 +40,28 @@ class KstDateTimesTest {
     }
 
     @Test
+    void kstRangeUtc_returnsUtcBoundsSpanningMultipleKstDays() {
+        LocalDate startDate = LocalDate.of(2026, 7, 1);
+        LocalDate endDateInclusive = LocalDate.of(2026, 7, 5);
+
+        KstDateTimes.UtcRange range = KstDateTimes.kstRangeUtc(startDate, endDateInclusive);
+
+        // KST 07-01 00:00 = UTC 06-30 15:00, KST 07-06 00:00(종료일 다음날) = UTC 07-05 15:00
+        assertThat(range.startUtc()).isEqualTo(LocalDateTime.of(2026, 6, 30, 15, 0, 0));
+        assertThat(range.endUtc()).isEqualTo(LocalDateTime.of(2026, 7, 5, 15, 0, 0));
+    }
+
+    @Test
+    void kstRangeUtc_withSameStartAndEndDateMatchesKstDayRangeUtc() {
+        LocalDate onlyDate = LocalDate.of(2026, 7, 9);
+
+        KstDateTimes.UtcRange rangeUtc = KstDateTimes.kstRangeUtc(onlyDate, onlyDate);
+        KstDateTimes.UtcRange dayRangeUtc = KstDateTimes.kstDayRangeUtc(onlyDate);
+
+        assertThat(rangeUtc).isEqualTo(dayRangeUtc);
+    }
+
+    @Test
     void toUtc_isInverseOfToKst() {
         LocalDateTime utc = LocalDateTime.of(2026, 1, 1, 10, 0, 0);
 

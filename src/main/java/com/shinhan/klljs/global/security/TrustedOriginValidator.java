@@ -7,6 +7,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -19,8 +20,11 @@ public class TrustedOriginValidator {
 
     private final Set<String> allowedOrigins;
 
-    public TrustedOriginValidator(@Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
-        this.allowedOrigins = Set.of(frontendUrl);
+    public TrustedOriginValidator(
+            @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl,
+            @Value("${app.swagger-origin:}") String swaggerOrigin
+    ) {
+        this.allowedOrigins = allowedOrigins(frontendUrl, swaggerOrigin);
     }
 
     public void validate(HttpServletRequest request) {
@@ -60,5 +64,16 @@ public class TrustedOriginValidator {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    private static Set<String> allowedOrigins(String... origins) {
+        LinkedHashSet<String> allowedOrigins = new LinkedHashSet<>();
+        for (String origin : origins) {
+            if (origin == null || origin.isBlank()) {
+                continue;
+            }
+            allowedOrigins.add(origin.trim());
+        }
+        return Set.copyOf(allowedOrigins);
     }
 }

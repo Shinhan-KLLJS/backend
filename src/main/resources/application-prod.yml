@@ -45,6 +45,7 @@ spring:
 
 app:
   frontend-url: ${APP_FRONTEND_URL}
+  swagger-origin: ${APP_SWAGGER_ORIGIN:https://api.loovi.my}
 
   auth:
     jwt:
@@ -52,6 +53,11 @@ app:
       secret: ${JWT_SECRET}
       access-token-ttl-seconds: 900
       refresh-token-ttl-seconds: 1209600
+
+  vision:
+    sqs:
+      queue-url: ${VISION_SQS_QUEUE_URL}
+      consumer-enabled: true
 
 logging:
   level:

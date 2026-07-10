@@ -13,8 +13,11 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Vision 장비(카메라)는 매체에 내장된 것으로 간주 (board_code, device_code를 매체가 직접 가짐).
@@ -41,7 +44,7 @@ public class MediaUnit extends BaseTimeEntity {
     @Column(name = "media_name", nullable = false, length = 200)
     private String mediaName;
 
-    @Column(name = "photo_url", length = 2048)
+    @Column(name = "photo_url", nullable = false, length = 2048)
     private String photoUrl;
 
     @Column(name = "location_address", nullable = false, length = 500)
@@ -53,11 +56,21 @@ public class MediaUnit extends BaseTimeEntity {
     @Column(name = "longitude", precision = 10, scale = 7)
     private BigDecimal longitude; // 경도
 
-    @Column(name = "width_mm")
+    @Column(name = "width_mm", nullable = false)
     private Integer widthMm;
 
-    @Column(name = "height_mm")
+    @Column(name = "height_mm", nullable = false)
     private Integer heightMm;
+
+    @Column(name = "resolution_width_px", nullable = false)
+    private Integer resolutionWidthPx;
+
+    @Column(name = "resolution_height_px", nullable = false)
+    private Integer resolutionHeightPx;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "shape_types", nullable = false)
+    private List<MediaUnitShapeType> shapeTypes;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -66,7 +79,8 @@ public class MediaUnit extends BaseTimeEntity {
     @Builder
     public MediaUnit(String boardCode, String deviceCode, String mediaName, String photoUrl,
                       String locationAddress, BigDecimal latitude, BigDecimal longitude,
-                      Integer widthMm, Integer heightMm, MediaUnitStatus status) {
+                      Integer widthMm, Integer heightMm, Integer resolutionWidthPx, Integer resolutionHeightPx,
+                      List<MediaUnitShapeType> shapeTypes, MediaUnitStatus status) {
         this.boardCode = boardCode;
         this.deviceCode = deviceCode;
         this.mediaName = mediaName;
@@ -76,6 +90,9 @@ public class MediaUnit extends BaseTimeEntity {
         this.longitude = longitude;
         this.widthMm = widthMm;
         this.heightMm = heightMm;
+        this.resolutionWidthPx = resolutionWidthPx;
+        this.resolutionHeightPx = resolutionHeightPx;
+        this.shapeTypes = shapeTypes;
         this.status = status;
     }
 

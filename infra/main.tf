@@ -155,4 +155,5 @@ module "ssm_params" {
   kakao_redirect_uri  = var.kakao_redirect_uri
   app_frontend_url    = var.app_frontend_url
   jwt_secret          = var.jwt_secret
+  sqs_queue_url       = module.sqs.queue_url
 }

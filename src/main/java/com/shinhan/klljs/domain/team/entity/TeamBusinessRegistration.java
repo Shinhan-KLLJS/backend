@@ -19,6 +19,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -54,6 +55,9 @@ public class TeamBusinessRegistration extends BaseTimeEntity {
     @Column(name = "business_address", length = 500)
     private String businessAddress; // 사업장 소재지
 
+    @Column(name = "business_opening_date")
+    private LocalDate businessOpeningDate; // 개업일
+
     @Column(name = "document_storage_key", nullable = false, length = 1024)
     private String documentStorageKey;
 
@@ -70,7 +74,8 @@ public class TeamBusinessRegistration extends BaseTimeEntity {
     @Builder
     public TeamBusinessRegistration(Team team, User uploadedBy, String businessNumber, String companyName,
                                      String representativeName, String businessType, String businessAddress,
-                                     String documentStorageKey, VerificationStatus verificationStatus) {
+                                     LocalDate businessOpeningDate, String documentStorageKey,
+                                     VerificationStatus verificationStatus) {
         this.team = team;
         this.uploadedBy = uploadedBy;
         this.businessNumber = businessNumber;
@@ -78,17 +83,20 @@ public class TeamBusinessRegistration extends BaseTimeEntity {
         this.representativeName = representativeName;
         this.businessType = businessType;
         this.businessAddress = businessAddress;
+        this.businessOpeningDate = businessOpeningDate;
         this.documentStorageKey = documentStorageKey;
         this.verificationStatus = verificationStatus;
     }
 
     public void resubmit(String businessNumber, String companyName, String representativeName,
-                          String businessType, String businessAddress, String documentStorageKey) {
+                          String businessType, String businessAddress, LocalDate businessOpeningDate,
+                          String documentStorageKey) {
         this.businessNumber = businessNumber;
         this.companyName = companyName;
         this.representativeName = representativeName;
         this.businessType = businessType;
         this.businessAddress = businessAddress;
+        this.businessOpeningDate = businessOpeningDate;
         this.documentStorageKey = documentStorageKey;
         this.verificationStatus = VerificationStatus.PENDING;
         this.rejectionReason = null;

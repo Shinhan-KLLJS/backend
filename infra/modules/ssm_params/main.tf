@@ -83,3 +83,13 @@ resource "aws_ssm_parameter" "jwt_secret" {
     Project = var.project_name
   }
 }
+
+resource "aws_ssm_parameter" "sqs_queue_url" {
+  name  = "/${var.project_name}/prod/sqs-queue-url"
+  type  = "String" # 큐 URL 자체는 비밀이 아니라 접근은 IAM으로 통제됨 (변수 선언 주석 참고)
+  value = var.sqs_queue_url
+
+  tags = {
+    Project = var.project_name
+  }
+}

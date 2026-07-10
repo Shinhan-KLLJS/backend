@@ -7,3 +7,4 @@ output "kakao_client_secret_name" { value = aws_ssm_parameter.kakao_client_secre
 output "kakao_redirect_uri_name"  { value = aws_ssm_parameter.kakao_redirect_uri.name }
 output "app_frontend_url_name"    { value = aws_ssm_parameter.app_frontend_url.name }
 output "jwt_secret_name"          { value = aws_ssm_parameter.jwt_secret.name }
+output "sqs_queue_url_name"       { value = aws_ssm_parameter.sqs_queue_url.name }

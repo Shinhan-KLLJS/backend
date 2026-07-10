@@ -19,3 +19,6 @@ variable "jwt_secret" {
   type      = string
   sensitive = true
 }
+
+# ──────────────── Vision Summary SQS ────────────────
+variable "sqs_queue_url" { type = string } # 큐 URL 자체는 비밀이 아니라 접근은 IAM으로 통제됨
