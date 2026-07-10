@@ -6,10 +6,11 @@ app:
   vision:
     sqs:
       queue-url: ${VISION_SQS_QUEUE_URL:}
-      region: ap-northeast-2
+      region: ${VISION_SQS_REGION:ap-northeast-2}
       # 기본값은 항상 false다 - 이 값이 true면 실제 운영 SQS 큐를 폴링/삭제하므로,
       # 테스트 실행이나 아무 생각 없는 로컬 기동에서 우연히 켜지면 안 된다.
       # application-prod.yml에서만 명시적으로 true로 켠다.
       consumer-enabled: ${VISION_SQS_CONSUMER_ENABLED:false}
       poll-wait-time-sec: 20
       poll-max-messages: 10
+
