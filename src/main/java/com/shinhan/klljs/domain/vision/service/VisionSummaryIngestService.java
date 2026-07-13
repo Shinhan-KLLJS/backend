@@ -60,8 +60,23 @@ public class VisionSummaryIngestService {
             visionSummary5sRepository.saveAndFlush(entity);
             return true;
         } catch (DataIntegrityViolationException e) {
-            return false;
+            if (isDuplicateVisionSummary(e)) {
+                return false;
+            }
+            log.error("Vision summary save failed: mediaUnitId={}, device={}, board={}, seq={}, eventTime={}",
+                    mediaUnit.getId(), message.deviceId(), message.boardId(), message.seq(), eventTimeUtc, e);
+            throw e;
         }
+    }
+
+    private boolean isDuplicateVisionSummary(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        String message = cause == null ? e.getMessage() : cause.getMessage();
+        return message != null && (
+                message.contains("uk_vision_summary_media_time")
+                        || message.contains("UK_VISION_SUMMARY_MEDIA_TIME")
+                        || message.contains("Unique index or primary key violation")
+        );
     }
 
     /**

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shinhan.klljs.domain.vision.config.VisionSqsProperties;
 import com.shinhan.klljs.domain.vision.dto.VisionSummaryMessage;
 import com.shinhan.klljs.domain.vision.service.VisionSummaryIngestService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -32,14 +33,29 @@ public class VisionSummarySqsConsumer {
     private final VisionSummaryIngestService ingestService;
     private final VisionSqsProperties properties;
 
+    @PostConstruct
+    void logStartup() {
+        log.info("Vision SQS consumer started: queueUrl={}, region={}, pollWaitTimeSec={}, pollMaxMessages={}",
+                properties.queueUrl(), properties.region(), properties.pollWaitTimeSec(), properties.pollMaxMessages());
+    }
+
     @Scheduled(fixedDelay = 1000)
     public void poll() {
-        ReceiveMessageResponse response = sqsClient.receiveMessage(ReceiveMessageRequest.builder()
-                .queueUrl(properties.queueUrl())
-                .maxNumberOfMessages(properties.pollMaxMessages())
-                .waitTimeSeconds(properties.pollWaitTimeSec())
-                .build());
+        ReceiveMessageResponse response;
+        try {
+            response = sqsClient.receiveMessage(ReceiveMessageRequest.builder()
+                    .queueUrl(properties.queueUrl())
+                    .maxNumberOfMessages(properties.pollMaxMessages())
+                    .waitTimeSeconds(properties.pollWaitTimeSec())
+                    .build());
+        } catch (Exception e) {
+            log.error("Vision SQS polling failed: queueUrl={}, region={}", properties.queueUrl(), properties.region(), e);
+            return;
+        }
 
+        if (!response.messages().isEmpty()) {
+            log.info("Vision SQS messages received: count={}", response.messages().size());
+        }
         for (Message message : response.messages()) {
             handle(message);
         }

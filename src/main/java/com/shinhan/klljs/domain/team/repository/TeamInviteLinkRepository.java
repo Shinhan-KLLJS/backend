@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface TeamInviteLinkRepository extends JpaRepository<TeamInviteLink, Long> {
 
     Optional<TeamInviteLink> findByTokenHash(byte[] tokenHash);
+
+    Optional<TeamInviteLink> findByTeamIdAndRevokedAtIsNull(Long teamId);
 }

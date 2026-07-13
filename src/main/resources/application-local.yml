@@ -62,3 +62,10 @@ app:
     jwt:
       # 로컬 전용 값. 운영은 JWT_SECRET 환경변수가 필수이고 코드에는 기본값이 없어 값이 없으면 기동에 실패한다.
       secret: local-dev-only-jwt-secret-value-please-rotate
+      access-token-ttl-seconds: ${LOCAL_ACCESS_TOKEN_TTL_SECONDS:900}
+
+  local-test-data:
+    # local 홈 대시보드/SQS 반복 테스트용 seed 데이터. 기본값은 꺼둔다.
+    enabled: ${LOCAL_DASHBOARD_MOCK_DATA_ENABLED:true}
+    issue-access-token: ${LOCAL_DASHBOARD_MOCK_DATA_ISSUE_ACCESS_TOKEN:true}
+

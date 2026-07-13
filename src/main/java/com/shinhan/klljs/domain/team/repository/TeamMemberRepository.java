@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 홈 대시보드의 팀 기반 접근 제어에 쓰는 리포지토리.
@@ -31,4 +32,12 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
      * findTeamIdsByUserIdAndStatus처럼 전체 팀 목록을 다 가져올 필요가 없어 더 가볍다.
      */
     boolean existsByUserIdAndTeamIdAndStatus(Long userId, Long teamId, TeamMemberStatus status);
+
+    Optional<TeamMember> findByUserIdAndTeamIdAndStatus(Long userId, Long teamId, TeamMemberStatus status);
+
+    @Query("select tm from TeamMember tm join fetch tm.user where tm.team.id = :teamId and tm.status = :status")
+    List<TeamMember> findAllWithUserByTeamIdAndStatus(
+            @Param("teamId") Long teamId,
+            @Param("status") TeamMemberStatus status
+    );
 }
