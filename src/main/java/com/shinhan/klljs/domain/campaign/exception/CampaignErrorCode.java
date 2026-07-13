@@ -23,6 +23,7 @@ public enum CampaignErrorCode implements BaseErrorCode {
 
     INVALID_CAMPAIGN_REQUEST(HttpStatus.BAD_REQUEST, "CAMPAIGN_400_001", "캠페인 요청 값이 올바르지 않습니다."),
     INVALID_CREATIVE_TOKEN(HttpStatus.BAD_REQUEST, "CAMPAIGN_400_002", "캠페인 소재 토큰이 올바르지 않습니다."),
+    CAMPAIGN_PERIOD_CONFLICT(HttpStatus.CONFLICT, "CAMPAIGN_409_001", "선택한 매체에 기간이 겹치는 캠페인이 있습니다."),
 
     // selected_start_date가 selected_end_date보다 늦은 경우처럼 요청 자체가 잘못된 경우.
     // 코드값이 CAMPAIGN_이 아니라 DASHBOARD_로 시작하는 건 스펙 원문 그대로다 -

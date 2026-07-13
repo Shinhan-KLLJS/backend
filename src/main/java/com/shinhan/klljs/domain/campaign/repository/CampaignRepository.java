@@ -55,4 +55,19 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
             @Param("requestedStartDate") LocalDate requestedStartDate,
             @Param("requestedEndDate") LocalDate requestedEndDate
     );
+
+    /** 매체 잠금 안에서 최종 기간 충돌을 다시 확인한다. 경계 날짜가 닿는 경우도 충돌이다. */
+    @Query("""
+            select count(c) from Campaign c
+            where c.mediaUnit.id = :mediaUnitId
+              and c.status <> :excludedStatus
+              and c.executionStartDate <= :requestedEndDate
+              and c.executionEndDate >= :requestedStartDate
+            """)
+    long countPeriodConflicts(
+            @Param("mediaUnitId") Long mediaUnitId,
+            @Param("excludedStatus") CampaignStatus excludedStatus,
+            @Param("requestedStartDate") LocalDate requestedStartDate,
+            @Param("requestedEndDate") LocalDate requestedEndDate
+    );
 }
