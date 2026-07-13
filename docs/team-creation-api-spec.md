@@ -129,7 +129,14 @@ API 단위로 담당을 분리했다 — 상세 내용은 "2. 담당자 요약" 
 - **사업자등록 검증은 팀 생성 요청 안에서 동기적으로 이루어진다.** 유효하지 않은 사업자등록증으로
   일단 팀을 만들고 나중에 반려하는 것보다, 애초에 유효한 경우에만 팀이 생기는 쪽이 사용자
   경험(그 자리에서 바로 에러를 알려줌)과 데이터 정합성(반려된 팀이 DB에 남지 않음) 모두에
-  낫다고 판단했다.
+  낫다고 판단했다. 다만 **국세청 호출은 트랜잭션을 시작하기 전에 끝낸다** — 외부 API 응답을
+  기다리는 동안 DB 커넥션을 붙잡고 있으면 검증과 무관한 요청까지 커넥션 풀을 기다리게 된다.
+- **업태·종목은 사용자에게 받지 않고 OCR 값을 서명 토큰으로 운반한다.** 광고업 분류는 이 두 값만
+  보고 판정하는데, 국세청은 이 값을 확인해주지 않는다. 폼으로 받으면 실제로는 음식점업인 사람이
+  "광고대행"으로 고쳐 제출해 스스로를 승인시킬 수 있다 (`server-verification-spec.md` §7).
+  그래서 업로드 API가 OCR로 읽은 원본을 `documentStorageKey` 토큰 payload에 **서명해서** 넣고,
+  서버가 팀 생성 시점에 꺼내 쓴다 — 값을 바꾸면 서명이 깨진다. 대가로 OCR이 업태·종목을 못 읽으면
+  사용자가 손으로 보완할 방법이 없어지는데, 이 막다른 길은 4절에 적어뒀다.
 - **팀 생성과 초대 코드 발급은 하나의 트랜잭션으로 묶지 않고, 별개의 API로 분리한다.**
   두 사람이 나눠 작업하는 구조라 — 하나로 묶으면 백엔드 B의 팀 생성 코드가 백엔드 A의
   `team_invite_links` 로직에 의존하게 되어 서로 독립적으로 개발/배포하기 어려워진다.
@@ -151,12 +158,13 @@ API 단위로 담당을 분리했다 — 상세 내용은 "2. 담당자 요약" 
 
 ## 2. 담당자 요약
 
-| 구분 | 담당 | 섹션 |
-|---|---|---|
-| 사업자등록증 업로드 API (S3 저장 + OCR Lambda 연동) | 백엔드 B | 4절 |
-| 외부 사업자등록 진위확인 API 연동 | 백엔드 B | 5절 |
-| 팀 생성 API (teams/team_members/team_business_registrations) | 백엔드 B | 5절 |
-| 초대 코드 발급 API (team_invite_links) | 백엔드 A | 6절 |
+| 구분 | 담당 | 섹션 | 상태 |
+|---|---|---|---|
+| 사업자등록증 업로드 API (S3 저장 + OCR Lambda 연동) | 백엔드 B | 4절 | **구현 완료** (DV-112) |
+| 외부 사업자등록 진위확인 API 연동 | 백엔드 B | 5절 | **구현 완료** (DV-112) |
+| 팀 생성 API (teams/team_members/team_business_registrations) | 백엔드 B | 5절 | **구현 완료** (DV-112) |
+| 사업자등록증 재제출 API | 백엔드 B | 5-2절 | **구현 완료** (DV-112) |
+| 초대 코드 발급 API (team_invite_links) | 백엔드 A | 6절 | 미구현 |
 | 팀원 페이지(목록 조회/역할 변경/강퇴 등, 초대 코드 발급 버튼 제외) | 백엔드 A | 미설계 - 별도 논의 필요 |
 | 팀 합류(코드 입력 → 실제 합류) | 미정 | 이번 범위 밖, "이번 범위에서 제외" 참고 |
 
@@ -175,11 +183,15 @@ Spring 쪽 초대 코드 API만 다루고 Lambda와는 접점이 없다.
 |---|---|---|---|---|
 | 사업자등록증 업로드 (OCR 포함) | 백엔드 B | POST | `/api/v1/teams/business-registration` | 파일을 S3에 저장하고 OCR 결과를 응답 |
 | 팀 생성 | 백엔드 B | POST | `/api/v1/teams` | 사업자등록 진위 확인 후 팀 + 팀원(OWNER) + 사업자등록 정보를 생성 |
+| 사업자등록증 재제출 | 백엔드 B | POST | `/api/v1/teams/{teamId}/business-registration` | **이미 있는 팀**의 사업자등록 정보를 다시 검증해 갱신 (5-2절) |
 | 초대 코드 발급 | 백엔드 A | POST | `/api/v1/teams/{teamId}/invite-code` | 팀원 초대용 코드를 새로 발급 (기존 활성 코드가 있으면 폐기) |
 
-앞의 두 API(백엔드 B)는 "인증된 사용자인가"만 확인하면 된다 (아직 팀이 없는 시점). 초대
-코드 발급 API(백엔드 A)는 다르다 — 이미 존재하는 팀에 대한 작업이라 "이 사용자가 이 팀
-소속인가"(+역할 제한 여부, "확인 필요 항목" 참고)까지 확인해야 한다.
+앞의 두 API(백엔드 B)는 "인증된 사용자인가"만 확인하면 된다 (아직 팀이 없는 시점). 나머지
+둘은 다르다 — 이미 존재하는 팀에 대한 작업이라 "이 사용자가 이 팀 소속인가"와 역할까지
+확인해야 한다 (재제출은 `OWNER`만, 초대 코드는 `OWNER`/`ADMIN`).
+
+재제출 API는 이 문서의 최초 설계엔 없었고, 검증 로직을 먼저 구현하면서 생겼다 — 반려·검토필요
+판정을 받은 팀이 사업자등록증을 다시 낼 경로가 필요했기 때문이다. 5-2절에 계약을 적어둔다.
 
 ---
 
@@ -213,19 +225,28 @@ file: (binary)
    입력하게 한다. OCR 성패가 업로드 성공 여부를 좌우하지 않는다.
 
 화면에는 팀명/사업자명/대표자명/사업자등록번호/개업일자 5개만 보이고 전부 사용자가 직접
-수정할 수 있다 — 그래서 OCR도 이 중 문서에 실제로 인쇄돼 있는 4개(사업자명/대표자명/
-사업자등록번호/개업일자)만 추출하면 된다. 업태·사업장 소재지는 이번 화면에 아예 없으므로
-OCR 대상이 아니다 (DB 컬럼 자체는 nullable로 남아있고, 이 플로우에서는 항상 값이 안 채워질 뿐).
+수정할 수 있다. 그런데 **OCR은 여기에 더해 업태(`businessType`)와 종목(`businessItem`)도 반드시
+추출해야 한다** — 광고업 분류(5절 "판정 규칙")의 유일한 입력이기 때문이다.
+
+업태·종목은 화면에 표시하지도, 응답 본문에 담지도 않는다. 대신 아래 `documentStorageKey`
+**서명 토큰 payload 안에 넣어서** 내려보내고, 팀 생성/재제출 시 서버가 토큰에서 꺼내 쓴다.
+사용자가 손댈 수 없게 하기 위해서다 — 폼으로 받으면 실제로는 음식점업인 사람이 업태를
+"광고대행"으로 고쳐 제출해 스스로를 승인시킬 수 있다 (`server-verification-spec.md` §7).
+
+사업장 소재지(`businessAddress`)는 화면에도 없고 광고업 분류에도 쓰이지 않으므로 OCR 대상이
+아니다 (DB 컬럼은 nullable로 남아있고 이 플로우에서는 항상 `null`이다).
 
 ### Response Fields
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `documentStorageKey` | string | 업로드된 파일을 가리키는 서명된 토큰(문자열). 프론트는 내용을 해석할 필요 없이 그대로 받아서 팀 생성 API에 그대로 실어 보낸다 — 자세한 내용은 5절 "documentStorageKey 검증" 참고 |
+| `documentStorageKey` | string | 업로드된 파일을 가리키는 서명된 토큰(문자열). 프론트는 내용을 해석할 필요 없이 그대로 받아서 팀 생성 API에 실어 보낸다. **업태·종목이 이 토큰 안에 들어있다** — 5절 "documentStorageKey 검증" 참고 |
 | `ocrResult.companyName` | string/null | OCR로 추출한 사업자명. 인식 실패 시 `null` |
 | `ocrResult.representativeName` | string/null | OCR로 추출한 대표자명 |
 | `ocrResult.businessNumber` | string/null | OCR로 추출한 사업자등록번호 (하이픈 제거) |
 | `ocrResult.businessOpeningDate` | string/null | OCR로 추출한 개업일 (`yyyy-MM-dd`). 팀 생성 API에서는 필수 필드라, OCR이 못 읽으면 사용자가 반드시 직접 입력해야 한다 |
+
+업태·종목은 `ocrResult`에 **없다** (위 설명 참고 — 토큰으로만 운반한다).
 
 ### Response Example
 
@@ -246,13 +267,33 @@ OCR 대상이 아니다 (DB 컬럼 자체는 nullable로 남아있고, 이 플�
 }
 ```
 
+### ⚠️ OCR이 업태·종목을 못 읽으면 팀 생성이 막힌다
+
+업태·종목이 둘 다 비면 광고업 분류가 `unknown`이 되고, 판정 규칙 5번에 걸려 `review_required`가
+된다. 팀 생성 API는 이걸 400으로 막는데 **화면에 입력란이 없어 사용자가 폼에서 고칠 수단이 없다.**
+규칙 7번(진짜 광고대행사인데 OCR 종목이 "마케팅"만 잡힌 경우)도 같은 막다른 길이다.
+
+복구 경로는 (a) 문서를 다시 업로드해 OCR을 재시도하거나 (b) 수동 검토를 요청하는 것뿐이다.
+에러 응답에 재업로드 안내 문구를 넣는다. 수동 검토 채널은 별도 이슈로 다룬다.
+
 ### 에러 케이스
 
 | 상황 | 코드 |
 |---|---|
-| 파일이 없음 | `400` |
-| 지원하지 않는 파일 형식/용량 초과 | `400` |
-| S3 업로드 자체가 실패 (인프라 문제) | `500` |
+| 파일이 첨부되지 않음 | `400` `BUSINESS_400_004` |
+| JPG/PNG/PDF가 아님 (**매직바이트 기준.** 확장자만 바꾼 파일 포함) | `400` `BUSINESS_400_002` |
+| 파일 용량 초과 (10MB) | `400` `BUSINESS_400_003` |
+| 매직바이트는 맞지만 열리지 않는 파일 (손상된 이미지, 헤더만 흉내 낸 PDF) | `400` `BUSINESS_400_005` |
+| 암호가 걸린 PDF | `400` `BUSINESS_400_006` |
+| PDF 페이지 수 초과 (5쪽) | `400` `BUSINESS_400_007` |
+| 서버에 업로드 토큰 서명 키가 설정되지 않음 | `500` `BUSINESS_500_002` |
+| S3 업로드 실패 (인프라 문제) | `500` `BUSINESS_500_003` |
+
+용량 초과가 `400`이 되려면 서블릿 multipart 상한이 서비스 상한(10MB)보다 커야 한다. 두 값이 같으면
+큰 파일이 컨트롤러에 닿기도 전에 서블릿이 잘라내 `413`(`COMMON_413_001`)이 나가고, 위 표의 `400`은
+어떤 입력으로도 나올 수 없는 죽은 코드가 된다. 그래서 multipart 상한은 20MB로 벌려 두었다.
+20MB조차 넘는 업로드는 여전히 `413`이다 — 서비스 계층은 파일이 이미 메모리에 올라온 뒤에야 크기를
+볼 수 있으므로, 터무니없이 큰 요청을 막는 최후의 방어선은 남겨 둔다.
 
 OCR 인식 실패는 에러가 아니다 — 위에서 설명한 대로 `ocrResult`의 해당 필드만 `null`이 된다.
 
@@ -291,10 +332,14 @@ Content-Type: application/json
 | `representativeName` | Y | string | 대표자명. 위와 동일하게 API 레벨 필수 |
 | `businessNumber` | Y | string | 사업자등록번호. 위와 동일하게 API 레벨 필수 |
 | `businessOpeningDate` | Y | string | 개업일 (`yyyy-MM-dd`). 외부 진위확인 API 호출에 필요해서 필수로 확정 |
-| `documentStorageKey` | Y | string | 업로드 API에서 받은 서명 토큰 |
+| `documentStorageKey` | Y | string | 업로드 API에서 받은 서명 토큰. **업태·종목이 이 안에 들어있다** |
 
-`businessType`/`businessAddress`는 화면에 입력란 자체가 없어서 이번 API에는 없다 (해당 DB
-컬럼은 nullable이라 그대로 두면 되고, 이 플로우로 생성된 팀은 항상 `null`로 남는다).
+**업태(`businessType`)·종목(`businessItem`)은 요청 본문에 없다.** 화면에 입력란이 없기도 하지만,
+더 중요한 이유는 사용자가 값을 고쳐 스스로를 승인시키는 것을 막기 위해서다 — 4절 참고.
+서버는 `documentStorageKey` 토큰 payload에서 OCR 원본을 꺼내 광고업 분류에 쓴다.
+
+`businessAddress`는 화면에도 없고 판정에도 쓰이지 않아 이번 API에 없다 (DB 컬럼은 nullable이라
+그대로 두면 되고, 이 플로우로 생성된 팀은 항상 `null`로 남는다).
 
 ### 요청값 정규화 및 시간 규칙
 
@@ -314,8 +359,15 @@ HMAC-SHA-256 서명을 붙인다.
 
 ```text
 v1.{base64url(payload)}.{base64url(hmacSha256(payload, uploadTokenSecret))}
-payload = { purpose: "business-registration-upload", s3Key, uploaderId, expiresAtEpochSecond }
+payload = {
+  purpose: "business-registration-upload",
+  s3Key, uploaderId, expiresAtEpochSecond,
+  businessType, businessItem      // OCR 원본. 인식 실패 시 null
+}
 ```
+
+`businessType`/`businessItem`이 payload에 들어가는 이유는 서명 대상으로 만들기 위해서다 —
+사용자가 값을 바꾸면 서명이 깨져 토큰이 무효가 된다. 이것이 폼 위조를 막는 유일한 장치다.
 
 `TokenHasher`는 단방향 SHA-256 해시 도구이므로 이 용도로 재사용하지 않는다. 별도의
 `BusinessRegistrationUploadTokenSigner`를 두고, JWT 서명 키와 분리된
@@ -323,10 +375,13 @@ payload = { purpose: "business-registration-upload", s3Key, uploaderId, expiresA
 팀 생성 시점에 다음을 검증한다:
 
 1. 토큰 버전과 `purpose`가 기대한 값인가
-2. HMAC 서명이 유효한가 (위변조 여부)
+2. HMAC 서명이 유효한가 (위변조 여부) — 타이밍 공격을 막기 위해 상수시간 비교를 쓴다
 3. 만료되지 않았는가 (`expiresAtEpochSecond`, UTC)
 4. 토큰에 담긴 `uploaderId`가 이 요청의 JWT `sub`(요청자)와 같은가
 5. `s3Key`가 서버가 발급하는 `team-registrations/` prefix 형식인가
+
+**어느 검사에서 실패했는지 응답으로 구분해 알려주지 않는다** (전부 같은 400 코드). 구분해 주면
+공격자가 토큰을 조금씩 바꿔가며 어느 필드가 문제인지 알아내는 판별기(validity oracle)가 된다.
 
 모든 조건을 통과하면 토큰 안의 실제 `s3Key`를 꺼내 `document_storage_key` 컬럼에 그대로
 저장한다 (DB에는 원래대로 순수 S3 키만 남는다 - 서명 토큰은 API 레벨에만 존재하는 값이다).
@@ -347,17 +402,19 @@ MVP 범위에서는 신경 쓰지 않기로 함)
 
 0. **(트랜잭션 시작 전)**
    a. 요청 필드를 정규화/형식 검증한다 (위 "요청값 정규화 및 시간 규칙" 참고).
-   b. `documentStorageKey`를 검증한다 (위 "documentStorageKey 검증" 참고). 실패하면 즉시
-      에러 응답한다.
-   c. 외부 사업자등록정보 조회 API를 정규화된 `businessNumber`(+ API가 요구하는 다른 파라미터,
-      "확인 필요 항목" 참고)로 호출해서 진위를 확인한다. 유효하지 않으면 즉시 에러 응답한다.
+   b. `documentStorageKey`를 검증하고, 안에서 `s3Key`와 OCR 업태·종목을 꺼낸다
+      (위 "documentStorageKey 검증" 참고). 실패하면 즉시 에러 응답한다.
+   c. 국세청 사업자등록정보 API로 진위·영업상태를 확인하고, 0-b에서 꺼낸 업태·종목으로 광고업을
+      분류해 최종 판정한다 (`docs/server-verification-spec.md` §1~§4). **`accepted`가 아니면
+      즉시 에러 응답한다** — 판정별 HTTP 상태는 아래 "판정과 응답" 참고.
    0-a~0-c의 세 단계가 모두 통과해야 아래 단계로 진행한다.
 1. `teams` row 생성 (`teamName`, `status = ACTIVE`)
 2. `team_members` row 생성 (`team` = 1에서 만든 팀, `user` = 요청자, `role = OWNER`,
    `status = ACTIVE`, `joinedAt = now`, `joinedViaInvite = null`)
 3. `team_business_registrations` row 생성 (`team` = 1에서 만든 팀, `uploadedBy` = 요청자,
    `companyName`/`representativeName`/`businessNumber`/`businessOpeningDate` = 요청값 그대로,
-   `businessType`/`businessAddress` = `null`, `documentStorageKey` = 0-b에서 꺼낸 실제 S3 키,
+   `businessType`/`businessItem` = **0-b에서 토큰에서 꺼낸 OCR 값**, `businessAddress` = `null`,
+   `documentStorageKey` = 0-b에서 꺼낸 실제 S3 키,
    `verificationStatus = APPROVED`, `verifiedAt = now`)
 
 1~3단계 중 하나라도 실패하면 전체 롤백한다 (0단계는 트랜잭션 시작 전이라 롤백 대상이 아니다
@@ -391,15 +448,92 @@ MVP 범위에서는 신경 쓰지 않기로 함)
 }
 ```
 
+### 판정과 응답 — 재제출 API와 다르다
+
+같은 검증 로직을 쓰지만 **HTTP 상태가 다르다.** 팀 생성은 리소스 생성이라 실패 시 아무 row도
+안 생기고 `400`이 맞다. 재제출(5-2절)은 이미 있는 row의 재평가 결과를 표현하는 것이라 `200`이 맞다.
+
+| decisionStatus | 팀 생성 API | 재제출 API (5-2절) |
+|---|---|---|
+| `accepted` | `200` + 팀 정보 (`APPROVED`) | `200` + 판정 결과 (`APPROVED`) |
+| `rejected` | `400` + `reasonCode` (row 없음) | `200` + 판정 결과 (`REJECTED`로 갱신) |
+| `review_required` | `400` + `reasonCode` (row 없음) | `200` + 판정 결과 (`PENDING`으로 갱신) |
+
+**프론트는 HTTP 상태가 아니라 `reasonCode`로 분기한다.** 두 API가 같은 `VerificationReasonCode`
+어휘(`NON_ADVERTISING_BUSINESS`, `INACTIVE_BUSINESS` 등)를 쓰므로 안내 문구 분기 로직을 공유할 수 있다.
+
+팀 생성 API가 `review_required`까지 `400`으로 막는 이유는 수동 검토 대기열이 아직 없기 때문이다 —
+`PENDING` 상태의 팀을 만들어두면 "PENDING인 동안 팀을 쓸 수 있는가"를 정해야 하는데, MVP 범위에서는
+그 질문을 아예 피하고 유효한 경우에만 팀이 생기게 한다.
+
 ### 에러 케이스
 
 | 상황 | 코드 |
 |---|---|
-| 필수 필드 누락 (`teamName`/`companyName`/`representativeName`/`businessNumber`/`businessOpeningDate`/`documentStorageKey`) | `400` |
-| `documentStorageKey` 서명이 유효하지 않거나 위변조됨, 또는 만료됨 | `400` |
-| `documentStorageKey`에 담긴 업로더가 요청자와 다름 | `400` |
-| 사업자등록증 진위 확인 실패 (외부 API가 "유효하지 않음"으로 응답) | `400` |
-| 외부 사업자등록 조회 API 호출 실패/타임아웃 (인프라 문제) | `500` |
+| 필수 필드 누락 / 길이 초과 | `400` `COMMON_400_002` |
+| `documentStorageKey`가 유효하지 않음 (서명 위변조·만료·업로더 불일치·잘못된 prefix) | `400` `BUSINESS_400_001` |
+| 국세청 API 호출 실패/타임아웃 | `500` `BUSINESS_500_004` |
+| 서버에 국세청 API 서비스 키가 설정되지 않음 | `500` `BUSINESS_500_001` |
+
+**토큰 실패는 사유를 구분해 알려주지 않는다.** 구분해 주면 공격자가 토큰을 조금씩 바꿔가며 어느
+필드가 문제인지 알아내는 판별기(validity oracle)가 된다. 사유는 서버 로그에만 남긴다.
+
+**검증 미통과 (팀이 만들어지지 않는다)** — 사유마다 코드가 다르다. 프론트는 `code`로 안내 문구를
+분기하고, 상세 메시지(폐업일 등)는 `errorDetail`에서 읽는다.
+
+| 판정 사유 | 코드 |
+|---|---|
+| 사업자번호·개업일자·대표자명 형식 오류 | `400` `BUSINESS_400_101` |
+| 국세청 미등록 번호 | `400` `BUSINESS_400_102` |
+| 진위 확인 실패 | `400` `BUSINESS_400_103` |
+| 휴업자·폐업자 (`errorDetail`에 폐업일) | `400` `BUSINESS_400_104` |
+| **OCR이 업태·종목을 못 읽음 → 재업로드 필요** | `400` `BUSINESS_400_105` |
+| 광고 관련 사업자가 아님 | `400` `BUSINESS_400_106` |
+| 광고업 여부 불명확 ("마케팅"·"홍보"만 매칭) → 고객센터 문의 | `400` `BUSINESS_400_107` |
+| 진위 확인 미완료 | `400` `BUSINESS_400_108` |
+
+`BUSINESS_400_105`가 유일하게 **사용자가 폼에서 고칠 수 없는** 경우다 — 업태·종목은 화면에
+입력란이 없고 OCR이 읽어 토큰으로만 들어오기 때문이다. 문서를 다시 업로드해야 한다.
+
+국세청 장애는 **`500`**이다(`BUSINESS_500_004`). 이 경우 DB에는 아무것도 쓰지 않으므로 프론트는
+그대로 재시도하면 된다.
+
+> 의미상으로는 상위 의존 서비스의 실패이니 `502 Bad Gateway`가 더 정확하다. 다만 이 설계 문서가
+> 정본이고 문서는 "외부 조회 API 호출 실패/타임아웃(인프라 문제)"을 `500`으로 규정했으므로, 코드를
+> 문서에 맞췄다. `502`로 가려면 문서를 먼저 개정한다 (팀 안건: `dv-112-open-decisions.md`).
+
+---
+
+## 5-2. 사업자등록증 재제출 API — 담당: 백엔드 B
+
+```http
+POST /api/v1/teams/{teamId}/business-registration
+Authorization: Bearer {accessToken}
+```
+
+반려(`REJECTED`)나 검토필요(`PENDING`) 판정을 받은 팀이 사업자등록증을 다시 내는 경로다.
+요청 본문과 판정 규칙은 5절 팀 생성 API와 같고, 아래만 다르다.
+
+- **권한: `OWNER`만.** `mvp-database-erd.md` 4절 권한 기준 표가 사업자등록증을 `OWNER` 행에만
+  두고 있다. `ADMIN`/`MEMBER`는 `403`, 팀에 속하지 않으면(팀이 없든 있든) 동일하게 `403`.
+- **응답은 판정과 무관하게 `200`이다** (위 "판정과 응답" 대비표). 반려 사유(`reasonCode`,
+  광고업 매칭 근거)를 화면에 보여줘야 하는데, 우리 `ApiResponse`는 실패 응답에 `result` 객체를
+  실을 수 없어 `400`으로 만들면 그 정보를 전부 잃는다.
+- **이미 `APPROVED`인 팀은 `409`로 막는다.** `team_business_registrations.team_id`가 UNIQUE라
+  재제출이 UPDATE로 동작하는데, 막지 않으면 잘못된 문서 한 번으로 승인이 반려로 퇴행한다
+  (`server-verification-spec.md` §5.3). 승인된 정보의 변경은 운영자를 거친다.
+- **동시 요청은 `teams` 행 잠금으로 직렬화한다.** 최초 제출 시점엔 잠글 registration 행이 없어
+  UNIQUE 위반이 `500`으로 새어나가고, 재제출 경합에서는 REPEATABLE READ 스냅샷 때문에 위의
+  `APPROVED` 재확인이 무력화된다. 6절 초대 코드 API와 **같은 `TeamRepository.findByIdForUpdate()`**
+  를 쓴다.
+
+| 상황 | 코드 |
+|---|---|
+| 요청자가 팀의 `ACTIVE` 멤버가 아님 | `403` `BUSINESS_403_001` |
+| 요청자가 `OWNER`가 아님 (`ADMIN`/`MEMBER`) | `403` `BUSINESS_403_002` |
+| 이미 승인된 팀의 재제출 | `409` `BUSINESS_409_001` |
+| 국세청 API 호출 실패 | `500` `BUSINESS_500_004` |
+| 서버에 국세청 API 서비스 키가 설정되지 않음 | `500` `BUSINESS_500_001` |
 
 ---
 
@@ -436,8 +570,7 @@ Authorization: Bearer {accessToken}
    위해서다 — 두 요청이 동시에 "활성 코드 없음/현재 코드"를 읽고 각자 새 코드를 insert하면
    `active_code_marker` 유니크 제약(팀당 활성 코드 1개)에 걸려 하나는 예외로 실패한다.
    `team_invite_links`에는 최초 발급 시점엔 잠글 행 자체가 없으므로, 대신 항상 존재하는
-   `teams` 행을 잠근다 — `TeamRepository`에 잠금 조회 메서드를 추가해야 한다(현재는
-   `JpaRepository`만 상속한 빈 인터페이스라 커스텀 쿼리가 없음).
+   `teams` 행을 잠근다 — `TeamRepository.findByIdForUpdate()`를 쓴다(DV-112에서 추가됨).
 1. 이 팀의 현재 활성 코드(`revoked_at IS NULL`)가 있으면 조회해서 폐기(`revoke(now)`) —
    없으면(팀 생성 직후 최초 호출) 이 단계는 건너뛴다
 2. 새 코드 생성 — 아래 "초대 코드 생성 규칙"
@@ -505,23 +638,54 @@ Authorization: Bearer {accessToken}
 
 ### 백엔드 B 관련
 
-1. **외부 사업자등록 조회 API의 정확한 스펙.** `businessOpeningDate`를 필수로 확정했으니
-   필드 구성 자체는 더 이상 막히지 않지만, 실제로 어떤 API를 호출할지(엔드포인트, 인증 방식,
-   "유효/무효" 판정을 어떤 응답 필드로 구분하는지)는 아직 정해지지 않았다 — Backend B가
-   실제 연동을 시작하기 전에 확인 필요.
-2. **외부 API 장애/타임아웃 시 처리 방침.** 지금 문서는 "실패하면 팀 생성 자체를 500으로
-   실패시킨다"로 가정했다. 대안으로 이럴 때만 `verificationStatus = PENDING`으로 일단
-   만들어두고 나중에 재검증하는 방식도 가능한데, 그러면 "PENDING인 동안 팀을 쓸 수 있는가"
-   질문이 이 예외 케이스에 한해 다시 살아난다 — 어느 쪽으로 할지 확인 필요.
-3. **업로드 파일 검증 기준.** 확장자 검사만으로는 우회가 쉬우므로(확장자만 바꾼 악성 파일),
-   실제 파일 시그니처(매직 바이트)/MIME 타입 검사, 이미지 파일은 디코딩까지 성공하는지 확인,
-   PDF는 페이지 수 상한과 암호화된 PDF 허용 여부까지 포함해서 검증해야 한다 — 다만 허용
-   확장자 목록, 최대 용량, 이미지 해상도 하한 등 구체적인 값 자체는 아직 확인 필요.
-4. **DB 컬럼은 nullable인데 API는 필수로 막는 것이 맞는가.** `mvp-database-erd.md` 5절 기준
-   `company_name`/`representative_name`/`business_number`는 컬럼 자체는 nullable이다 (재제출
-   플로우 등을 고려한 설계로 추정). 화면은 전부 필수 입력(`*`)이라, 이 문서에서는 API 레벨
-   유효성 검사로 필수 처리했다 — 이 판단이 맞는지 확인 필요.
-5. **업로드 후 팀 생성을 안 하고 이탈하면 S3에 파일이 orphan으로 남는다.** 새 업로드 테이블을
+1. ~~**외부 사업자등록 조회 API의 정확한 스펙.**~~ **해소됨.** 공공데이터포털(data.go.kr)의
+   국세청 사업자등록정보 API를 쓴다 (`https://api.odcloud.kr/api/nts-businessman/v1`).
+   - 진위확인 `POST /validate` — `b_no`(사업자번호) + `start_dt`(개업일 `YYYYMMDD`) + `p_nm`(대표자명).
+     `valid == "01"`이면 통과. **사업자명·업태·종목·주소는 보내지 않는다** — OCR 값의 흔들림이 커서
+     일치 검증에 쓰면 정상 사업자가 반려된다.
+   - 상태조회 `POST /status` — 사업자번호만으로 등록 여부·영업 상태. `/validate` 응답에 상태 객체가
+     없을 때만 보조로 호출한다. **이것만으로 승인하면 안 된다** (남의 실존 번호를 넣어도 통과한다).
+   - 인증은 `serviceKey` 쿼리 파라미터. 포털이 이미 인코딩된 키를 주는 경우가 있어, 키에 `%`가
+     있으면 그대로 쓰고 없을 때만 인코딩한다 (이중 인코딩하면 인증 실패).
+   - **미등록 판단은 `b_stt_cd`가 빈 문자열인지로만 한다.** `tax_type` 문구로 판단하면 국세청이
+     문구를 바꿀 때 조용히 깨진다.
+   - **진위 통과 ≠ 영업 중.** 진짜 사업자등록증인데 이미 폐업한 경우가 실제로 있다.
+   상세는 `docs/server-verification-spec.md` §2.
+2. ~~**외부 API 장애/타임아웃 시 처리 방침.**~~ **해소됨 — 문서대로 `500`으로 실패시킨다.**
+   구현이 `NTS_API_FAILED`를 `500`(`BUSINESS_500_004`)으로 응답한다. DB에는 아무것도 쓰지 않으므로
+   프론트는 재시도하면 된다.
+   대안이었던 "이때만 `PENDING`으로 만들어두고 나중에 재검증"은 **폐기한다** — 팀 생성은
+   `accepted`일 때만 row를 만든다는 정책(5절 "판정과 응답")과 배치되고, "PENDING인 동안 팀을 쓸 수
+   있는가"를 되살린다.
+   (한때 구현이 `502`로 응답한 적이 있으나, 문서를 정본으로 삼아 `500`으로 되돌렸다. `502`가
+   의미상 더 정확하다는 점은 별도 개정 안건으로 남긴다.)
+3. ~~**업로드 파일 검증 기준.**~~ **해소됨 — 구현 완료 (DV-112).** 확정된 값은 다음과 같다.
+   - 허용 형식: JPG·PNG·PDF. **매직바이트로만 판별한다** (확장자·Content-Type은 믿지 않는다).
+   - 최대 용량: 10MB 초과 시 `400`(`BUSINESS_400_003`). 서블릿 multipart 상한은 20MB로 벌려
+     두어 이 `400`이 실제로 도달 가능하게 했다(4절 에러 표 참고).
+   - **이미지는 디코딩까지 성공해야 한다** — 매직바이트는 파일 앞 몇 바이트일 뿐이라 헤더만
+     흉내 낸 파일도 통과한다. 그러면 S3에 저장되고 OCR Lambda까지 호출된 뒤에야(호출당 과금)
+     아무것도 못 읽었다는 결과가 돌아온다. 실패 시 `400`(`BUSINESS_400_005`).
+   - **PDF는 실제로 파싱한다.** 암호가 걸렸으면 `400`(`BUSINESS_400_006`) — OCR이 읽을 수 없다.
+     페이지 수 상한은 **5쪽**이고 초과 시 `400`(`BUSINESS_400_007`) — 사업자등록증은 한 장짜리
+     문서이고, OCR은 페이지 수에 비례해 과금된다.
+   - 이미지 해상도 하한은 두지 않았다. 너무 흐린 문서는 OCR이 필드를 못 읽고, 그 경우는 이미
+     "OCR 실패 → 사용자가 직접 입력"으로 처리된다(4절).
+4. ~~**DB 컬럼은 nullable인데 API는 필수로 막는 것이 맞는가.**~~ **해소됨 — 맞다.** 정리하면:
+   - **팀 생성 API**: 화면 필수 5개는 API에서도 필수. 빈 값은 `@NotBlank`로 `400`, 비어있지 않지만
+     형식이 틀린 경우(9자리 사업자번호, `20240631` 같은 없는 날짜)는 판정 규칙 1번을 거쳐 역시 `400`.
+   - **재제출 API**: `businessNumber`/`representativeName`/`businessOpeningDate`에 `@NotBlank`를
+     걸지 **않는다.** 이 세 값의 누락·형식오류는 `400`이 아니라 판정 규칙 1번
+     (`review_required` / `VALIDATION_INPUT_INCOMPLETE`)으로 흘러야 하기 때문이다. 걸면 Spring이
+     먼저 `400`을 내버려 그 경로가 사라진다.
+   - **DB 컬럼은 계속 nullable로 둔다** — 재제출과 사후 재검증 흐름에서 값이 비는 상태가 정상이다.
+5. ~~**업로드 후 팀 생성을 안 하고 이탈하면 S3에 파일이 orphan으로 남는다.**~~
+   **해소됨 — 정리 배치 구현 완료 (DV-112, `BusinessRegistrationOrphanCleaner`).** 아래 설계 그대로다.
+   보관 기간은 2일, 운영에서만 켜지며(로컬/테스트가 실제 버킷을 지우면 안 된다) 매일 새벽 4시 30분
+   (KST)에 돈다. 이 배치가 `ListBucket` 권한을 필요로 하는데 8절 권한 목록에서 빠져 있었어서 함께
+   보완했다(prefix 한정).
+
+   원래 설계: 새 업로드 테이블을
    쓰지 않으므로, 정리 배치는 `team-registrations/*` 중 N일이 지난 객체를 대상으로
    `team_business_registrations.document_storage_key`에 참조가 없는 경우만 삭제한다. 토큰 만료가
    1시간이므로 N은 최소 2일 이상으로 둔다. 대량 데이터에서는 S3 목록을 페이지 단위로 읽고,
@@ -542,27 +706,52 @@ Authorization: Bearer {accessToken}
 
 - 업로드 토큰은 `BusinessRegistrationUploadTokenSigner`만 발급/검증한다. HMAC 키는
   `BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET` 환경변수로 주입하고, 최소 256비트의 무작위 값을
-  SSM `SecureString`에 저장한다. 키를 교체하면 최대 1시간 동안 기존 업로드 토큰이 무효화될 수
-  있으므로, 교체는 팀 생성 화면을 사용하지 않는 시간대에 수행한다.
-- S3 업로드는 서버가 발급한 `team-registrations/` prefix로만 수행한다. 애플리케이션 역할에는
-  해당 prefix의 `PutObject` 권한과 orphan 정리용 `DeleteObject` 권한만 부여한다 — 팀 생성
-  시점에 S3를 다시 조회하지 않으므로(5절 "documentStorageKey 검증" 참고) `GetObject`/
-  `HeadObject`는 필요 없다. OCR Lambda 역할에는 `GetObject` 권한만 부여한다. 버킷은 private
-  상태를 유지한다.
-- OCR Lambda 요청 계약은 `{ bucket, key }`, 응답 계약은
-  `{ companyName, representativeName, businessNumber, businessOpeningDate }`로 고정한다. 각 OCR
-  필드는 인식 실패 시 `null`을 허용한다. Lambda 호출 또는 응답 파싱 자체가 실패해도 업로드는
-  성공으로 처리하고 모든 OCR 필드를 `null`로 내려주되, 서버에는 원인 로그를 남긴다.
-- 외부 사업자 진위확인 API의 선택은 백엔드 B가 담당한다. 선택한 API는
-  `BusinessRegistrationVerifier` 같은 내부 인터페이스 뒤에 감추고, API 키는 SSM `SecureString`으로
-  관리한다. 외부 API가 바뀌어도 이 문서의 프론트 요청/응답 계약은 바꾸지 않는다.
+  SSM `SecureString`에 저장한다. **JWT 서명 키와 반드시 다른 값을 쓴다** — 용도가 다른 키를
+  공유하면 한쪽이 유출됐을 때 다른 쪽까지 무너진다. 키를 교체하면 최대 1시간 동안 기존 업로드
+  토큰이 무효화되므로, 교체는 팀 생성 화면을 사용하지 않는 시간대에 수행한다.
+- S3 업로드는 서버가 발급한 `team-registrations/{uuid}.{ext}` 키로만 수행한다. **사용자가 보낸
+  파일명은 쓰지 않는다** — 경로 조작(`../`)과 다른 사용자의 문서를 덮어쓰는 것을 원천 차단한다.
+  확장자도 파일명이 아니라 매직바이트로 판별한 실제 형식에서 가져온다.
+  애플리케이션 역할에는 `PutObject`, orphan 정리용 `DeleteObject`, 그리고 정리 배치가 대상을 찾기
+  위한 `ListBucket`을 부여한다 — 팀 생성 시점에 S3를 다시 조회하지 않으므로
+  (5절 "documentStorageKey 검증" 참고) `GetObject`/`HeadObject`는 필요 없다.
+  `ListBucket`은 9절이 정한 정리 배치가 "S3 목록을 페이지 단위로 읽어" 고아 객체를 찾아내는 데
+  반드시 필요하다(고아 객체의 키는 DB 어디에도 없다). 다만 **`Condition`으로 조회 범위를
+  `team-registrations/` prefix 안으로 제한한다** — 이 버킷은 Vision 이미지와 공유하므로 남의 파일
+  목록까지 보이면 안 된다. `PutObject`/`DeleteObject`의 `Resource`도 같은 prefix로 좁힌다.
+  OCR Lambda 역할에는 `GetObject`만 부여한다. 버킷은 private 상태를 유지한다.
+- **파일 검증은 확장자·Content-Type이 아니라 매직바이트로 한다.** 둘 다 클라이언트가 마음대로
+  붙여 보내는 값이라, 실행 파일의 확장자만 `.png`로 바꿔도 통과한다. 허용 형식은 JPG·PNG·PDF,
+  최대 10MB다(`spring.servlet.multipart.max-file-size`와 서비스 계층 양쪽에서 확인).
+- OCR Lambda는 **API Gateway를 거치지 않고 SDK로 직접 invoke**한다. EC2 역할에
+  `lambda:InvokeFunction`을 그 함수 하나로 한정해 부여한다(와일드카드 금지).
+  - 요청 계약: **`{ action: "ocr", bucket, key }`**. `action`이 없으면 Lambda가 거부한다 —
+    S3 업로드 이벤트 트리거로 잘못 설정했을 때 결과를 돌려받을 호출자 없이 실행되는 것을 막는 가드다.
+  - 응답 계약: **`{ companyName, representativeName, businessNumber, businessOpeningDate,
+    businessType, businessItem }`**. proxy 봉투(`{statusCode, body}`) 없이 최상위에 온다.
+    인식 실패해도 키는 `null`로 항상 존재한다.
+  - **`businessType`(업태)·`businessItem`(종목)이 반드시 포함되어야 한다** — 광고업 분류의 유일한
+    입력이고, 서버는 이 값을 업로드 토큰 payload에 서명해 넣는다(4절). 이 두 필드의 인식률이
+    OCR 품질의 핵심 지표다 — 못 읽으면 팀 생성이 막힌다.
+  - 실패 시 Lambda는 예외를 던지지 않고 `{ error, message }`를 돌려준다. **서버는 이를 업로드
+    실패로 취급하지 않고** 모든 OCR 필드를 `null`로 내려주되 원인 로그를 남긴다 — 사용자가 값을
+    직접 입력하면 되기 때문이다.
+- 국세청 진위확인 API 연동은 `NtsBusinessmanClient`로 구현돼 있다 (7절 1번 참고). 서비스 키는
+  `NTS_SERVICE_KEY` 환경변수로 주입하고 SSM `SecureString`으로 관리한다. **예외 메시지에 요청 URL이
+  그대로 실려 나가고 거기에 서비스 키가 들어있으므로, 로그로 내보내기 전에 반드시 마스킹하고
+  원본 예외를 cause로 연결하지 않는다** (스택트레이스로도 새어 나간다).
 
 ### 필수 테스트
 
-- 업로드 토큰: 정상, 서명 위변조, 만료, 다른 사용자 토큰, 잘못된 prefix
+- 업로드 토큰: 정상, 서명 위변조, 만료, 다른 사용자 토큰, 잘못된 prefix (업로드 API PR에서)
+- 권한: `OWNER` 성공, `ADMIN`/`MEMBER` `403`, 비멤버 `403`, 그리고 **권한 실패 시 국세청을 호출하지
+  않고 DB에도 쓰지 않는지**
 - 요청값: 공백/하이픈 정규화, 사업자번호 자릿수 오류, 미래 개업일, 문자열 길이 초과
-- 외부 검증: 유효, 무효, 타임아웃/5xx
+- 외부 검증: 유효, 무효, 타임아웃/5xx(`500`)
+- 판정: 진위통과+폐업자가 `accepted`가 아니라 `rejected`인지 (규칙 4가 규칙 8보다 먼저)
 - 트랜잭션: 팀/OWNER/사업자등록 중 어느 저장 단계가 실패해도 전체 롤백
+- 동시성: 같은 팀에 재제출 2건을 동시에 보냈을 때 `500`(UNIQUE 위반)이 아니라 순서대로 처리되고,
+  이미 승인된 팀이면 뒤쪽이 `409`로 막히는지 — **H2로는 검증되지 않으니 MySQL에서 확인한다**
 - OCR: 일부 필드 또는 Lambda 자체 실패는 업로드 성공, OCR 필드는 모두 `null`
 
 ---
@@ -571,11 +760,10 @@ Authorization: Bearer {accessToken}
 
 ### 구현 계약
 
-- 동시성 제어: `TeamRepository`에 팀 행을 잠그는 조회 메서드를 추가한다
-  (`@Lock(LockModeType.PESSIMISTIC_WRITE)`, 예: `findByIdForUpdate(Long teamId)`). 초대 코드
-  발급 트랜잭션은 이 메서드로 `teams` 행을 잠근 뒤에만 활성 코드 조회/폐기/재발급을
-  진행한다(6절 "처리 순서" 0단계 참고). 현재 `TeamRepository`는 `JpaRepository`만 상속한
-  빈 인터페이스라 이 메서드가 없다.
+- 동시성 제어: `TeamRepository.findByIdForUpdate()`(`@Lock(PESSIMISTIC_WRITE)`)를 쓴다.
+  **DV-112에서 이미 추가돼 있다** — 새로 만들 필요 없다. 초대 코드 발급 트랜잭션은 이 메서드로
+  `teams` 행을 잠근 뒤에만 활성 코드 조회/폐기/재발급을 진행한다(6절 "처리 순서" 0단계 참고).
+  잠금 조회는 **반드시 그 트랜잭션의 첫 DB 읽기**여야 한다 — 이유는 해당 메서드의 Javadoc에 적어뒀다.
 - 역할 검사: `TeamMemberRepository.existsByUserIdAndTeamIdAndStatus()`는 `boolean`만
   반환해서 역할 판단에는 못 쓴다. 요청자의 `TeamMemberRole`까지 반환하는 조회를 추가하고,
   `OWNER`/`ADMIN`이 아니면 `403`으로 응답한다.
