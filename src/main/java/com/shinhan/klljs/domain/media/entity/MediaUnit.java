@@ -20,8 +20,10 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Vision 장비(카메라)는 매체에 내장된 것으로 간주 (board_code, device_code를 매체가 직접 가짐).
- * 카메라가 물리적으로 교체돼도 새 행을 만들지 않고 deviceCode를 갱신해서 과거 데이터 연결을 유지한다.
+ * 광고 매체의 위치, 규격, 화면 형태와 Vision 소스 매핑을 보관한다.
+ *
+ * <p>MVP에서는 모든 매체가 동일한 board/device 코드를 공유한다. 두 컬럼은 물리 장비의 소유 관계가
+ * 아니라 공용 SQS 메시지를 fan-out할 매체 집합을 찾는 매핑 키다.</p>
  */
 @Entity
 @Table(name = "media_units")
@@ -106,10 +108,6 @@ public class MediaUnit extends BaseTimeEntity {
         this.status = status;
     }
 
-    /** 카메라 교체 시 사용 — 새 media_unit 행을 만들지 않는다. */
-    public void replaceDevice(String newDeviceCode) {
-        this.deviceCode = newDeviceCode;
-    }
 
     public void changeStatus(MediaUnitStatus status) {
         this.status = status;
