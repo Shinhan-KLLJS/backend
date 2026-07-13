@@ -21,6 +21,7 @@ public enum CampaignErrorCode implements BaseErrorCode {
     // (다른 팀 캠페인을 남의 campaign_id로 억지로 조회하려는 경우 포함)
     CAMPAIGN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "CAMPAIGN_403_001", "캠페인에 접근할 권한이 없습니다."),
 
+    INVALID_CAMPAIGN_REQUEST(HttpStatus.BAD_REQUEST, "CAMPAIGN_400_001", "캠페인 요청 값이 올바르지 않습니다."),
     INVALID_CREATIVE_TOKEN(HttpStatus.BAD_REQUEST, "CAMPAIGN_400_002", "캠페인 소재 토큰이 올바르지 않습니다."),
 
     // selected_start_date가 selected_end_date보다 늦은 경우처럼 요청 자체가 잘못된 경우.

@@ -46,7 +46,7 @@ public class VisionSummaryIngestService {
      *         해결되지 않는 오류라 호출한 컨슈머가 SQS 메시지를 삭제하지 않고 DLQ로 넘어가게 둔다.
      */
     public boolean ingest(VisionSummaryMessage message, String rawBody) {
-        MediaUnit mediaUnit = mediaUnitRepository.findByBoardCodeAndDeviceCode(message.boardId(), message.deviceId())
+        MediaUnit mediaUnit = mediaUnitRepository.findFirstByBoardCodeAndDeviceCodeOrderByIdAsc(message.boardId(), message.deviceId())
                 .orElseThrow(() -> new MediaUnitNotFoundException(message.boardId(), message.deviceId()));
 
         LocalDateTime eventTimeUtc = LocalDateTime.ofInstant(message.timestamp(), ZoneOffset.UTC);

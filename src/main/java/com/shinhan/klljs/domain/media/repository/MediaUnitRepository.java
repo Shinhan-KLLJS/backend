@@ -1,8 +1,10 @@
 package com.shinhan.klljs.domain.media.repository;
 
 import com.shinhan.klljs.domain.media.entity.MediaUnit;
+import com.shinhan.klljs.domain.media.entity.MediaUnitStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface MediaUnitRepository extends JpaRepository<MediaUnit, Long> {
@@ -15,5 +17,7 @@ public interface MediaUnitRepository extends JpaRepository<MediaUnit, Long> {
      * MediaUnit.replaceDevice()로 device_code를 갱신하므로, 옛 device_id로 오는 메시지는
      * 이 조건에서 걸러진다 - 교체 전 카메라가 계속 잘못된 데이터를 보내는 상황 방지).
      */
-    Optional<MediaUnit> findByBoardCodeAndDeviceCode(String boardCode, String deviceCode);
+    Optional<MediaUnit> findFirstByBoardCodeAndDeviceCodeOrderByIdAsc(String boardCode, String deviceCode);
+
+    List<MediaUnit> findAllByStatusOrderByMediaNameAscIdAsc(MediaUnitStatus status);
 }

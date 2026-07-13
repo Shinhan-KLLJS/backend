@@ -63,6 +63,8 @@ public class SecurityConfig {
                             "/login/oauth2/code/kakao",
                             "/api/v1/auth/token/refresh",
                             "/api/v1/auth/logout",
+                            // MVP 관리자 입력 API는 인증 없이 호출하므로 CSRF token을 발급받을 주체가 없다.
+                            "/api/v1/admin/media-units",
                             "/h2-console/**"
                     );
                 })
@@ -88,6 +90,8 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/h2-console/**",
                                 "/api/v1/auth/**", // 회원가입, 로그인 같은 인증 관련 API도 접근 허용
+                                // MVP 운영자가 Swagger/내부 도구에서 직접 등록하는 공개 관리 API.
+                                "/api/v1/admin/media-units",
                                 "/oauth2/authorization/kakao",
                                 "/login/oauth2/code/kakao"
                         ).permitAll()

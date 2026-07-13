@@ -1,6 +1,7 @@
 package com.shinhan.klljs.domain.campaign.repository;
 
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
+import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,5 +39,20 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
     List<Campaign> findActiveCampaignsForMediaUnit(
             @Param("mediaUnitId") Long mediaUnitId,
             @Param("eventDateKst") LocalDate eventDateKst
+    );
+
+    /** 선택 기간과 겹치는 캠페인이 있는 매체 ID만 한 번에 조회해 목록 N+1을 방지한다. */
+    @Query("""
+            select distinct c.mediaUnit.id from Campaign c
+            where c.mediaUnit.id in :mediaUnitIds
+              and c.status <> :excludedStatus
+              and c.executionStartDate <= :requestedEndDate
+              and c.executionEndDate >= :requestedStartDate
+            """)
+    List<Long> findConflictingMediaUnitIds(
+            @Param("mediaUnitIds") List<Long> mediaUnitIds,
+            @Param("excludedStatus") CampaignStatus excludedStatus,
+            @Param("requestedStartDate") LocalDate requestedStartDate,
+            @Param("requestedEndDate") LocalDate requestedEndDate
     );
 }
