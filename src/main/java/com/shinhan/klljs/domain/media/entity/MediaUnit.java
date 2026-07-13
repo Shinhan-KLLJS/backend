@@ -50,6 +50,14 @@ public class MediaUnit extends BaseTimeEntity {
     @Column(name = "location_address", nullable = false, length = 500)
     private String locationAddress;
 
+    // 시/도. 표시용 locationAddress와 별개로 지역 필터링/검색을 위해 구조화해서 저장한다
+    // (주소 검색 API 응답을 그대로 넣는다 - locationAddress를 파싱해서 채우지 않는다).
+    @Column(name = "sido", length = 20)
+    private String sido;
+
+    @Column(name = "sigungu", length = 50)
+    private String sigungu;
+
     @Column(name = "latitude", precision = 10, scale = 7)
     private BigDecimal latitude; // 위도
 
@@ -78,7 +86,7 @@ public class MediaUnit extends BaseTimeEntity {
 
     @Builder
     public MediaUnit(String boardCode, String deviceCode, String mediaName, String photoUrl,
-                      String locationAddress, BigDecimal latitude, BigDecimal longitude,
+                      String locationAddress, String sido, String sigungu, BigDecimal latitude, BigDecimal longitude,
                       Integer widthMm, Integer heightMm, Integer resolutionWidthPx, Integer resolutionHeightPx,
                       List<MediaUnitShapeType> shapeTypes, MediaUnitStatus status) {
         this.boardCode = boardCode;
@@ -86,6 +94,8 @@ public class MediaUnit extends BaseTimeEntity {
         this.mediaName = mediaName;
         this.photoUrl = photoUrl;
         this.locationAddress = locationAddress;
+        this.sido = sido;
+        this.sigungu = sigungu;
         this.latitude = latitude;
         this.longitude = longitude;
         this.widthMm = widthMm;
