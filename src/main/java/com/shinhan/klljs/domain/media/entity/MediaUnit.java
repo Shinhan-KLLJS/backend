@@ -34,11 +34,11 @@ public class MediaUnit extends BaseTimeEntity {
     private Long id;
 
     // Vision 메시지의 board_id
-    @Column(name = "board_code", nullable = false, unique = true, length = 100)
+    @Column(name = "board_code", nullable = false, length = 100)
     private String boardCode;
 
     // Vision 메시지의 device_id
-    @Column(name = "device_code", nullable = false, unique = true, length = 100)
+    @Column(name = "device_code", nullable = false, length = 100)
     private String deviceCode;
 
     @Column(name = "media_name", nullable = false, length = 200)
@@ -52,16 +52,16 @@ public class MediaUnit extends BaseTimeEntity {
 
     // 시/도. 표시용 locationAddress와 별개로 지역 필터링/검색을 위해 구조화해서 저장한다
     // (주소 검색 API 응답을 그대로 넣는다 - locationAddress를 파싱해서 채우지 않는다).
-    @Column(name = "sido", length = 20)
+    @Column(name = "sido", nullable = false, length = 20)
     private String sido;
 
-    @Column(name = "sigungu", length = 50)
+    @Column(name = "sigungu", nullable = false, length = 50)
     private String sigungu;
 
-    @Column(name = "latitude", precision = 10, scale = 7)
+    @Column(name = "latitude", nullable = false, precision = 10, scale = 7)
     private BigDecimal latitude; // 위도
 
-    @Column(name = "longitude", precision = 10, scale = 7)
+    @Column(name = "longitude", nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude; // 경도
 
     @Column(name = "width_mm", nullable = false)

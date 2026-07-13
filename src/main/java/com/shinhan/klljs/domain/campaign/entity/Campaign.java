@@ -37,7 +37,7 @@ public class Campaign extends BaseTimeEntity {
     private Team team;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "media_unit_id")
+    @JoinColumn(name = "media_unit_id", nullable = false)
     private MediaUnit mediaUnit;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -62,6 +62,25 @@ public class Campaign extends BaseTimeEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    /**
+     * 업로드 단계에서 사용자가 선언하고 서명 토큰으로 전달된 소재 유형이다.
+     * 실제 S3 객체의 Content-Type을 신뢰하거나 파일 바이트를 재검사하지 않는다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "creative_type", nullable = false, length = 20)
+    private CampaignCreativeType creativeType;
+
+    /**
+     * 공개 URL 전체가 아니라 서버가 생성한 S3 object key만 저장한다.
+     * 응답 URL은 배포 환경별 public base URL과 이 값을 조합해 생성한다.
+     */
+    @Column(name = "creative_storage_key", nullable = false, length = 1024)
+    private String creativeStorageKey;
+
+    /** 사용자가 업로드한 원본 파일명으로, 화면 표시와 추적 목적에만 사용한다. */
+    @Column(name = "creative_original_filename", nullable = false, length = 255)
+    private String creativeOriginalFilename;
+
     @Column(name = "image_url", length = 2048)
     private String imageUrl;
 
@@ -75,7 +94,8 @@ public class Campaign extends BaseTimeEntity {
     @Builder
     public Campaign(Team team, MediaUnit mediaUnit, User createdBy, String campaignName, String brandName,
                      LocalDate executionStartDate, LocalDate executionEndDate, Integer dailyTargetPlayCount,
-                     String description, String imageUrl, CampaignStatus status) {
+                     String description, CampaignCreativeType creativeType, String creativeStorageKey,
+                     String creativeOriginalFilename, String imageUrl, CampaignStatus status) {
         if (executionEndDate.isBefore(executionStartDate)) {
             throw new IllegalArgumentException("executionEndDate must not be before executionStartDate");
         }
@@ -88,13 +108,13 @@ public class Campaign extends BaseTimeEntity {
         this.executionEndDate = executionEndDate;
         this.dailyTargetPlayCount = dailyTargetPlayCount;
         this.description = description;
+        this.creativeType = creativeType;
+        this.creativeStorageKey = creativeStorageKey;
+        this.creativeOriginalFilename = creativeOriginalFilename;
         this.imageUrl = imageUrl;
         this.status = status;
     }
 
-    public void assignMediaUnit(MediaUnit mediaUnit) {
-        this.mediaUnit = mediaUnit;
-    }
 
     public void markRegistered() {
         this.status = CampaignStatus.REGISTERED;

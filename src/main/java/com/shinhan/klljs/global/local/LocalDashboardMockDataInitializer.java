@@ -1,6 +1,7 @@
 package com.shinhan.klljs.global.local;
 
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
+import com.shinhan.klljs.domain.campaign.entity.CampaignCreativeType;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
 import com.shinhan.klljs.domain.campaign.repository.CampaignRepository;
 import com.shinhan.klljs.domain.media.entity.MediaUnit;
@@ -156,6 +157,8 @@ public class LocalDashboardMockDataInitializer implements ApplicationRunner {
                         .mediaName("강남역 로컬 테스트 매체")
                         .photoUrl("https://example.com/local-media.png")
                         .locationAddress("서울특별시 중구 세종대로 110")
+                        .sido("서울특별시")
+                        .sigungu("중구")
                         .latitude(new BigDecimal("37.5665000"))
                         .longitude(new BigDecimal("126.9780000"))
                         .widthMm(1200)
@@ -190,6 +193,9 @@ public class LocalDashboardMockDataInitializer implements ApplicationRunner {
                             .dailyTargetPlayCount(4320)
                             .description("Local profile에서 실제 AWS SQS polling을 검증하기 위한 캠페인")
                             .imageUrl("https://example.com/local-campaign.png")
+                            .creativeType(CampaignCreativeType.IMAGE)
+                            .creativeStorageKey("test-fixtures/campaign.png")
+                            .creativeOriginalFilename("campaign.png")
                             .status(CampaignStatus.IN_EXECUTION)
                             .build());
                 });
