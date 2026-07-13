@@ -67,6 +67,12 @@ jobs:
           APP_FRONTEND_URL=\$(aws ssm get-parameter --name /vision/prod/app-frontend-url --query Parameter.Value --output text --region ap-northeast-2)
           JWT_SECRET=\$(aws ssm get-parameter --name /vision/prod/jwt-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
           VISION_SQS_QUEUE_URL=\$(aws ssm get-parameter --name /vision/prod/sqs-queue-url --query Parameter.Value --output text --region ap-northeast-2)
+          # 사업자등록증 검증 (DV-112). application-prod.yml이 이 넷을 기본값 없이 요구하므로
+          # 하나라도 빠지면 컨테이너가 기동 자체에 실패한다.
+          NTS_SERVICE_KEY=\$(aws ssm get-parameter --name /vision/prod/nts-service-key --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/business-registration-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_BUCKET=\$(aws ssm get-parameter --name /vision/prod/business-registration-bucket --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_OCR_FUNCTION=\$(aws ssm get-parameter --name /vision/prod/business-registration-ocr-function --query Parameter.Value --output text --region ap-northeast-2)
           docker pull ${DOCKER_IMAGE}
           docker stop klljs-app || true
           docker rm klljs-app || true
@@ -80,6 +86,10 @@ jobs:
             -e APP_FRONTEND_URL="\$APP_FRONTEND_URL" \
             -e JWT_SECRET="\$JWT_SECRET" \
             -e VISION_SQS_QUEUE_URL="\$VISION_SQS_QUEUE_URL" \
+            -e NTS_SERVICE_KEY="\$NTS_SERVICE_KEY" \
+            -e BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET="\$BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET" \
+            -e BUSINESS_REGISTRATION_BUCKET="\$BUSINESS_REGISTRATION_BUCKET" \
+            -e BUSINESS_REGISTRATION_OCR_FUNCTION="\$BUSINESS_REGISTRATION_OCR_FUNCTION" \
             ${DOCKER_IMAGE}
           SCRIPT
 

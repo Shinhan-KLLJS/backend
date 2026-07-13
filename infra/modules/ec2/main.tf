@@ -103,7 +103,26 @@ resource "aws_iam_role_policy" "ec2_ssm_params" {
   })
 }
 
-# 업로드된 이미지/파일 조회·저장 권한 (S3)
+# 사업자등록증 업로드 권한 (S3) - team-creation-api-spec.md 8절 "보안"
+#
+# 권한을 PutObject/DeleteObject 두 개로, 범위를 사업자등록증 prefix 하나로 못박는다.
+#
+# GetObject/HeadObject를 주지 않는 이유: 팀 생성 시 S3를 다시 조회하지 않는다. 업로드 때 발급한
+# 서명 토큰(HMAC)만 검증하면 되므로 서버가 파일을 읽을 일이 아예 없다. 읽기 권한이 있으면
+# EC2 자격증명이 새는 순간 버킷에 쌓인 사업자등록증 원본(대표자명·주소·사업자번호가 찍힌
+# 민감 문서)이 통째로 열린다. 안 쓰는 권한은 주지 않는다.
+#
+# prefix로 좁히는 이유: 이 버킷은 Vision 이미지와 공유한다. 버킷 전체를 열어두면 애플리케이션에
+# 키 조작 취약점이 하나만 생겨도 남의 객체까지 덮어쓰거나 지울 수 있다.
+#
+# DeleteObject와 ListBucket은 사업자등록증 orphan 정리 배치용이다 - 업로드만 하고 팀 생성 없이
+# 이탈하면 S3에 참조 없는 객체가 남는다. 정리 배치가 team_business_registrations.document_storage_key에
+# 참조가 없는 오래된 객체(2일 이상)만 지운다.
+#
+# ListBucket이 필요한 이유: 고아 객체의 키는 DB 어디에도 없다(업로드 시점에 DB를 쓰지 않으므로).
+# 그래서 배치가 S3 목록을 페이지 단위로 읽어 DB 참조와 대조하는 수밖에 없다 - 문서 9절이 정한
+# 방식 그대로다. 다만 목록을 볼 수 있는 범위는 사업자등록증 prefix 안으로 못박는다.
+# 이 버킷은 Vision 이미지와 공유하므로, 남의 파일 목록까지 보이면 안 된다.
 resource "aws_iam_role_policy" "ec2_s3" {
   name = "${var.project_name}-ec2-s3-policy"
   role = aws_iam_role.ec2.id
@@ -113,13 +132,45 @@ resource "aws_iam_role_policy" "ec2_s3" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject"]
-        Resource = "${var.s3_bucket_arn}/*"
+        Action   = ["s3:PutObject", "s3:DeleteObject"]
+        Resource = "${var.s3_bucket_arn}/${var.business_registration_key_prefix}*"
       },
       {
+        # ListBucket은 객체가 아니라 버킷에 거는 권한이라 Resource가 버킷 ARN이다.
+        # 대신 Condition으로 조회 가능한 prefix를 제한한다 - 이게 없으면 버킷 전체 목록이 보인다.
         Effect   = "Allow"
         Action   = "s3:ListBucket"
         Resource = var.s3_bucket_arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["${var.business_registration_key_prefix}*"]
+          }
+        }
+      }
+    ]
+  })
+}
+
+# OCR Lambda 호출 권한 (DV-112)
+#
+# API Gateway를 거치지 않고 SDK로 직접 invoke한다 - API GW는 동기 호출에 29초 제한이 있고,
+# 인증(JWT authorizer)과 CORS를 따로 관리해야 하며, 인증 없이 열려 있으면 OCR 비용이 남용된다.
+# 백엔드가 이미 검증한 JWT 세션 안에서 부르면 이 문제가 전부 없어진다.
+#
+# 리소스를 그 함수 하나로 못박는다. 와일드카드를 쓰면 EC2가 계정의 모든 Lambda를 부를 수 있다.
+resource "aws_iam_role_policy" "ec2_lambda_invoke" {
+  count = var.business_registration_ocr_function_arn == "" ? 0 : 1
+
+  name = "${var.project_name}-ec2-lambda-invoke-policy"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = var.business_registration_ocr_function_arn
       }
     ]
   })
