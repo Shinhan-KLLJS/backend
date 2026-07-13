@@ -5,7 +5,7 @@ ALTER TABLE campaigns
     ADD COLUMN creative_storage_key VARCHAR(1024) NOT NULL AFTER creative_type,
     ADD COLUMN creative_original_filename VARCHAR(255) NOT NULL AFTER creative_storage_key,
     MODIFY COLUMN media_unit_id BIGINT UNSIGNED NOT NULL,
-    ADD CONSTRAINT chk_campaign_creative_type CHECK (creative_type IN (''IMAGE'', ''VIDEO''));
+    ADD CONSTRAINT chk_campaign_creative_type CHECK (creative_type IN ('IMAGE', 'VIDEO'));
 
 -- The admin registration API always receives structured region and coordinate values.
 ALTER TABLE media_units
