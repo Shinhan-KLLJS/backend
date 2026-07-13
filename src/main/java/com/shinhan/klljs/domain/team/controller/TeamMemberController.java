@@ -1,10 +1,13 @@
 package com.shinhan.klljs.domain.team.controller;
 
 import com.shinhan.klljs.domain.team.dto.TeamInviteCodeResponse;
+import com.shinhan.klljs.domain.team.dto.TeamJoinRequest;
+import com.shinhan.klljs.domain.team.dto.TeamJoinResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberListResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberRoleChangeRequest;
 import com.shinhan.klljs.domain.team.dto.TeamMemberRoleChangeResponse;
 import com.shinhan.klljs.domain.team.service.TeamInviteCodeService;
+import com.shinhan.klljs.domain.team.service.TeamJoinService;
 import com.shinhan.klljs.domain.team.service.TeamMemberManagementService;
 import com.shinhan.klljs.global.apiPayload.ApiResponse;
 import com.shinhan.klljs.global.apiPayload.code.GeneralSuccessCode;
@@ -27,6 +30,17 @@ public class TeamMemberController implements TeamMemberControllerDocs {
 
     private final TeamMemberManagementService teamMemberManagementService;
     private final TeamInviteCodeService teamInviteCodeService;
+    private final TeamJoinService teamJoinService;
+
+    @Override
+    @PostMapping("/api/v1/teams/join")
+    public ApiResponse<TeamJoinResponse> joinTeam(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody TeamJoinRequest request
+    ) {
+        TeamJoinResponse response = teamJoinService.join(userId(jwt), request.inviteCode());
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, response);
+    }
 
     @Override
     @GetMapping("/api/v1/teams/{teamId}/members")

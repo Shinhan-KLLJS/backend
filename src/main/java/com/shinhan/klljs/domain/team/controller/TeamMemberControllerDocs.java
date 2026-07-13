@@ -1,6 +1,8 @@
 package com.shinhan.klljs.domain.team.controller;
 
 import com.shinhan.klljs.domain.team.dto.TeamInviteCodeResponse;
+import com.shinhan.klljs.domain.team.dto.TeamJoinRequest;
+import com.shinhan.klljs.domain.team.dto.TeamJoinResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberListResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberRoleChangeRequest;
 import com.shinhan.klljs.domain.team.dto.TeamMemberRoleChangeResponse;
@@ -13,6 +15,18 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 @Tag(name = "팀원 관리", description = "팀원 목록, 초대 코드, 역할, 삭제 및 나가기 API")
 public interface TeamMemberControllerDocs {
+
+    @Operation(summary = "팀 합류", description = "유효한 7자리 초대 코드를 입력해 해당 팀에 MEMBER로 합류합니다. LEFT/REMOVED 이력이 있으면 MEMBER로 재합류합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "합류 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효하지 않거나 만료/폐기된 코드 (TEAM_400_001)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "사용자 없음 (USER_404_001)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "비활성 팀 또는 이미 소속된 팀 (TEAM_409_001/003)")
+    })
+    ApiResponse<TeamJoinResponse> joinTeam(
+            @Parameter(hidden = true) Jwt jwt,
+            TeamJoinRequest request
+    );
 
     @Operation(summary = "팀원 목록 조회", description = "ACTIVE 팀원을 조회하고 이름/이메일로 검색한다. 팀명과 본인 여부를 함께 반환한다.")
     @ApiResponses({

@@ -35,6 +35,8 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
 
     Optional<TeamMember> findByUserIdAndTeamIdAndStatus(Long userId, Long teamId, TeamMemberStatus status);
 
+    Optional<TeamMember> findByUserIdAndTeamId(Long userId, Long teamId);
+
     @Query("select tm from TeamMember tm join fetch tm.user where tm.team.id = :teamId and tm.status = :status")
     List<TeamMember> findAllWithUserByTeamIdAndStatus(
             @Param("teamId") Long teamId,

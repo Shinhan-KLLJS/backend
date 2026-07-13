@@ -19,6 +19,7 @@ public enum TeamErrorCode implements BaseErrorCode {
 
     TEAM_NOT_ACTIVE(HttpStatus.CONFLICT, "TEAM_409_001", "활성 상태의 팀에서만 수행할 수 있습니다."),
     OWNER_TRANSFER_REQUIRED(HttpStatus.CONFLICT, "TEAM_409_002", "팀을 나가기 전에 OWNER 역할을 이전해야 합니다."),
+    ALREADY_TEAM_MEMBER(HttpStatus.CONFLICT, "TEAM_409_003", "이미 해당 팀에 소속되어 있습니다."),
 
     INVITE_CODE_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "TEAM_500_001", "초대 코드 생성에 실패했습니다.");
 
