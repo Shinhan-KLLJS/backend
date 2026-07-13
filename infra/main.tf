@@ -42,6 +42,10 @@ module "s3" {
   source = "./modules/s3"
 
   project_name = var.project_name
+  campaign_creative_cors_origins = [
+    var.app_frontend_url,
+    "https://${var.domain_name}",
+  ]
 }
 
 # ------------------------------------------------------------
@@ -111,15 +115,15 @@ resource "aws_route53_record" "frontend_www" {
 module "ec2" {
   source = "./modules/ec2"
 
-  project_name      = var.project_name
-  vpc_id            = module.vpc.vpc_id
-  public_subnet_ids = module.vpc.public_subnet_ids
+  project_name          = var.project_name
+  vpc_id                = module.vpc.vpc_id
+  public_subnet_ids     = module.vpc.public_subnet_ids
   alb_security_group_id = module.alb.security_group_id
-  target_group_arn   = module.alb.target_group_arn
-  instance_type      = var.ec2_instance_type
-  ami_id             = var.ec2_ami_id
-  key_name           = var.key_name
-  s3_bucket_arn      = module.s3.bucket_arn
+  target_group_arn      = module.alb.target_group_arn
+  instance_type         = var.ec2_instance_type
+  ami_id                = var.ec2_ami_id
+  key_name              = var.key_name
+  s3_bucket_arn         = module.s3.bucket_arn
 }
 
 # ------------------------------------------------------------
@@ -156,4 +160,8 @@ module "ssm_params" {
   app_frontend_url    = var.app_frontend_url
   jwt_secret          = var.jwt_secret
   sqs_queue_url       = module.sqs.queue_url
+
+  campaign_creative_bucket              = module.s3.bucket_name
+  campaign_creative_public_base_url     = "https://${module.s3.bucket_name}.s3.${var.aws_region}.amazonaws.com"
+  campaign_creative_upload_token_secret = var.campaign_creative_upload_token_secret
 }

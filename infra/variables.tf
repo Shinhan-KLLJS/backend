@@ -85,7 +85,7 @@ variable "db_username" {
 variable "db_password" {
   description = "DB 마스터 비밀번호 (terraform.tfvars에서 설정)"
   type        = string
-  sensitive   = true  # 로그/출력에서 숨김
+  sensitive   = true # 로그/출력에서 숨김
 }
 
 # ──────────────── 카카오 로그인 / 서비스 JWT ────────────────
@@ -123,6 +123,13 @@ variable "vercel_www_cname_target" {
 
 variable "jwt_secret" {
   description = "서비스 JWT 서명용 HMAC 비밀키 (openssl rand -base64 32 등으로 생성, 32바이트 이상)"
+  type        = string
+  sensitive   = true
+}
+
+# ──────────────── 캠페인 소재 업로드 ────────────────
+variable "campaign_creative_upload_token_secret" {
+  description = "캠페인 소재 업로드 토큰 서명용 HMAC 비밀키 (JWT 서명 키와 별도 - openssl rand -base64 32 등으로 생성)"
   type        = string
   sensitive   = true
 }
