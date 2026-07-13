@@ -14,3 +14,11 @@ app:
       poll-wait-time-sec: 20
       poll-max-messages: 10
 
+  campaign:
+    creative:
+      bucket: ${CAMPAIGN_CREATIVE_BUCKET:local-campaign-creatives}
+      region: ${CAMPAIGN_CREATIVE_REGION:ap-northeast-2}
+      public-base-url: ${CAMPAIGN_CREATIVE_PUBLIC_BASE_URL:https://example.com/local-campaign-creatives}
+      upload-token-secret: ${CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET:local-dev-only-campaign-creative-secret}
+      upload-ttl-seconds: 3600
+
