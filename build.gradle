@@ -22,6 +22,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 
+	// @Valid / @NotBlank 등 Bean Validation. GeneralExceptionAdvice가 이미 BindException을
+	// 처리하고 있어 동작은 했지만, hibernate-validator가 springdoc을 통해 전이로만 들어와 있었다.
+	// springdoc을 빼거나 올리면 @Valid가 조용히 검증을 멈추므로 명시적으로 선언한다.
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
 	// 카카오 Authorization Code 로그인
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
@@ -39,12 +44,23 @@ dependencies {
 	// 모니터링 및 헬스체크 스타터
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-	// Vision Summary SQS 수신용. Spring Boot 4가 아직 Spring Cloud AWS 지원 대상이 아니라서
-	// (Spring Cloud AWS의 @SqsListener 같은 편의 기능 대신) AWS SDK v2를 직접 쓰고
-	// @Scheduled 폴링으로 소비한다. 자격증명은 기본 체인을 그대로 쓴다 - 로컬은 aws configure로
-	// 설정된 자격증명, 운영(EC2)은 인스턴스 프로파일(ec2_sqs IAM 정책)을 자동으로 사용한다.
-	implementation 'software.amazon.awssdk:sqs:2.42.19'
-	implementation 'software.amazon.awssdk:s3:2.42.19'
+	// AWS SDK v2. Spring Boot 4가 아직 Spring Cloud AWS 지원 대상이 아니라서
+	// (Spring Cloud AWS의 @SqsListener 같은 편의 기능 대신) SDK를 직접 쓴다.
+	// 자격증명은 기본 체인을 그대로 쓴다 - 로컬은 aws configure로 설정된 자격증명,
+	// 운영(EC2)은 인스턴스 프로파일을 자동으로 사용한다.
+	//
+	// BOM으로 버전을 한곳에서 맞춘다. 모듈별로 버전을 따로 적으면 공통 의존성(core, http-client)이
+	// 버전이 어긋나 런타임에 NoSuchMethodError가 나기 쉬워서다.
+	implementation platform('software.amazon.awssdk:bom:2.42.19')
+	implementation 'software.amazon.awssdk:sqs'          // Vision Summary 수신 (@Scheduled 폴링)
+	implementation 'software.amazon.awssdk:s3'           // 캠페인 소재 presigned PUT, 사업자등록증 원본 저장
+	implementation 'software.amazon.awssdk:lambda'       // OCR Lambda 직접 invoke (API Gateway 미경유)
+
+	// 업로드된 사업자등록증 PDF를 실제로 열어본다 (team-creation-api-spec.md 4절).
+	// 매직바이트("%PDF-")만 보면 헤더만 흉내 낸 파일이 통과해 S3에 저장되고 OCR Lambda까지 호출된다
+	// (= 비용). 암호가 걸렸거나 손상된 PDF도 OCR이 못 읽으므로 업로드 시점에 걸러낸다.
+	// 이미지(JPG/PNG)는 JDK의 ImageIO로 디코딩해보면 되어 별도 의존성이 필요 없다.
+	implementation 'org.apache.pdfbox:pdfbox:3.0.3'
 
 	// prod: RDS MySQL
 	runtimeOnly 'com.mysql:mysql-connector-j'
@@ -79,7 +95,13 @@ tasks.named('test') {
 	}
 }
 
-// 실행 전 실제 MySQL 컨테이너를 준비해야 한다: ./gradlew mysqlConcurrencyTest
+// 잠금 동작을 검증하는 테스트들. 반드시 실제 MySQL로 돌려야 한다 —
+// H2는 READ COMMITTED, MySQL InnoDB는 REPEATABLE READ가 기본이라 우리가 잡으려는 버그가
+// H2에서는 재현되지 않는다 (잠금을 지워도 통과해버린다).
+//
+//   docker compose -f docker-compose.test.yml up -d --wait
+//   ./gradlew mysqlConcurrencyTest
+//   docker compose -f docker-compose.test.yml down
 tasks.register('mysqlConcurrencyTest', Test) {
 	useJUnitPlatform {
 		includeTags 'mysql-concurrency'

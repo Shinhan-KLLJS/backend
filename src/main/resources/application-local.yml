@@ -59,6 +59,16 @@ app:
       secret: local-dev-only-jwt-secret-value-please-rotate
       access-token-ttl-seconds: ${LOCAL_ACCESS_TOKEN_TTL_SECONDS:900}
 
+  upload:
+    business-registration:
+      # 로컬 전용 값. JWT와 마찬가지로 운영은 환경변수가 필수이고 기본값이 없어 없으면 기동에 실패한다.
+      token-secret: local-dev-only-upload-token-secret-please-rotate
+      # 버킷과 OCR 함수는 비워둔다. 실제 AWS에 붙지 않아도 컨텍스트가 뜨고 테스트가 돌아야 한다.
+      # 비어 있으면 S3 업로드는 500(BUSINESS_500_003)으로 막히고, OCR은 호출을 건너뛰어
+      # 모든 필드를 null로 내려준다. 로컬에서 실제로 업로드를 해보려면 환경변수로 덮어쓴다.
+      bucket: ${BUSINESS_REGISTRATION_BUCKET:}
+      ocr-function-name: ${BUSINESS_REGISTRATION_OCR_FUNCTION:}
+
   local-test-data:
     # local 홈 대시보드/SQS 반복 테스트용 seed 데이터. 기본값은 꺼둔다.
     enabled: ${LOCAL_DASHBOARD_MOCK_DATA_ENABLED:true}
