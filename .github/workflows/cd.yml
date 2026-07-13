@@ -25,7 +25,11 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:latest
+          # latest는 편의용 별칭일 뿐 배포 대상은 항상 commit SHA 태그로 고정한다 -
+          # latest만 쓰면 롤백 시 "이전 이미지"를 가리킬 안정적인 참조가 없다.
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -54,7 +58,7 @@ jobs:
 
       - name: Deploy via SSM Run Command
         env:
-          DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:latest
+          DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/klljs-app:${{ github.sha }}
         run: |
           cat > deploy_script.sh <<SCRIPT
           set -e
@@ -67,20 +71,70 @@ jobs:
           APP_FRONTEND_URL=\$(aws ssm get-parameter --name /vision/prod/app-frontend-url --query Parameter.Value --output text --region ap-northeast-2)
           JWT_SECRET=\$(aws ssm get-parameter --name /vision/prod/jwt-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
           VISION_SQS_QUEUE_URL=\$(aws ssm get-parameter --name /vision/prod/sqs-queue-url --query Parameter.Value --output text --region ap-northeast-2)
+          CAMPAIGN_CREATIVE_BUCKET=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-bucket --query Parameter.Value --output text --region ap-northeast-2)
+          CAMPAIGN_CREATIVE_PUBLIC_BASE_URL=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-public-base-url --query Parameter.Value --output text --region ap-northeast-2)
+          CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+
+          MARKER_FILE=/tmp/klljs_current_image
+          PREVIOUS_IMAGE=\$(cat "\$MARKER_FILE" 2>/dev/null || echo "")
+
+          run_app() {
+            local image="\$1"
+            docker run -d --name klljs-app --restart unless-stopped -p 8080:8080 \
+              -e SPRING_DATASOURCE_URL="\$DB_URL" \
+              -e SPRING_DATASOURCE_USERNAME="\$DB_USERNAME" \
+              -e SPRING_DATASOURCE_PASSWORD="\$DB_PASSWORD" \
+              -e KAKAO_REST_API_KEY="\$KAKAO_REST_API_KEY" \
+              -e KAKAO_CLIENT_SECRET="\$KAKAO_CLIENT_SECRET" \
+              -e KAKAO_REDIRECT_URI="\$KAKAO_REDIRECT_URI" \
+              -e APP_FRONTEND_URL="\$APP_FRONTEND_URL" \
+              -e JWT_SECRET="\$JWT_SECRET" \
+              -e VISION_SQS_QUEUE_URL="\$VISION_SQS_QUEUE_URL" \
+              -e CAMPAIGN_CREATIVE_BUCKET="\$CAMPAIGN_CREATIVE_BUCKET" \
+              -e CAMPAIGN_CREATIVE_PUBLIC_BASE_URL="\$CAMPAIGN_CREATIVE_PUBLIC_BASE_URL" \
+              -e CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET="\$CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET" \
+              "\$image"
+          }
+
+          wait_for_health() {
+            for i in \$(seq 1 30); do
+              sleep 2
+              if curl -sf http://localhost:8080/actuator/health >/dev/null 2>&1; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
           docker pull ${DOCKER_IMAGE}
           docker stop klljs-app || true
           docker rm klljs-app || true
-          docker run -d --name klljs-app --restart unless-stopped -p 8080:8080 \
-            -e SPRING_DATASOURCE_URL="\$DB_URL" \
-            -e SPRING_DATASOURCE_USERNAME="\$DB_USERNAME" \
-            -e SPRING_DATASOURCE_PASSWORD="\$DB_PASSWORD" \
-            -e KAKAO_REST_API_KEY="\$KAKAO_REST_API_KEY" \
-            -e KAKAO_CLIENT_SECRET="\$KAKAO_CLIENT_SECRET" \
-            -e KAKAO_REDIRECT_URI="\$KAKAO_REDIRECT_URI" \
-            -e APP_FRONTEND_URL="\$APP_FRONTEND_URL" \
-            -e JWT_SECRET="\$JWT_SECRET" \
-            -e VISION_SQS_QUEUE_URL="\$VISION_SQS_QUEUE_URL" \
-            ${DOCKER_IMAGE}
+          run_app "${DOCKER_IMAGE}"
+
+          if wait_for_health; then
+            echo "Health check passed for ${DOCKER_IMAGE}"
+            echo "${DOCKER_IMAGE}" > "\$MARKER_FILE"
+          else
+            echo "Health check failed for ${DOCKER_IMAGE}, dumping container logs:" >&2
+            docker logs klljs-app --tail 200 >&2 || true
+            docker stop klljs-app || true
+            docker rm klljs-app || true
+
+            if [ -n "\$PREVIOUS_IMAGE" ]; then
+              echo "Rolling back to previous image: \$PREVIOUS_IMAGE" >&2
+              docker pull "\$PREVIOUS_IMAGE" || true
+              run_app "\$PREVIOUS_IMAGE"
+              if wait_for_health; then
+                echo "Rollback to \$PREVIOUS_IMAGE succeeded" >&2
+              else
+                echo "Rollback to \$PREVIOUS_IMAGE also failed health check" >&2
+                docker logs klljs-app --tail 200 >&2 || true
+              fi
+            else
+              echo "No previous image recorded, cannot roll back automatically" >&2
+            fi
+            exit 1
+          fi
           SCRIPT
 
           PARAMS=$(jq -Rs '{"commands": [.]}' deploy_script.sh)
@@ -94,15 +148,38 @@ jobs:
             --query "Command.CommandId" --output text)
           echo "Command ID: $COMMAND_ID"
 
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ steps.ec2.outputs.instance_id }}" || true
+          # aws ssm wait command-executed는 내부 대기 시간(약 100초)이 고정돼 있는데,
+          # 이 배포 스크립트는 이미지 pull까지 포함하면 2분 넘게 걸릴 때가 있다. 그러면
+          # 명령 자체는 나중에 Success로 끝나는데도 워크플로우는 InProgress 상태에서
+          # 이미 시간 초과로 실패 처리되는 오탐이 발생한다(2026-07-13 CD 실행에서 실제로
+          # 발생 - 명령은 2분 3초 후 Success였지만 워크플로우는 그 전에 실패 처리됨).
+          # 그래서 고정 waiter 대신 자체 폴링 루프로 대체하고 대기 시간을 넉넉하게 잡는다.
+          MAX_WAIT_SECONDS=300
+          POLL_INTERVAL_SECONDS=5
+          ELAPSED=0
+          STATUS="Pending"
 
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ steps.ec2.outputs.instance_id }}" \
-            --query "Status" --output text)
-          echo "Deploy status: $STATUS"
+          while true; do
+            sleep "$POLL_INTERVAL_SECONDS"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL_SECONDS))
+
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "${{ steps.ec2.outputs.instance_id }}" \
+              --query "Status" --output text 2>/dev/null || echo "Pending")
+            echo "Deploy status after ${ELAPSED}s: $STATUS"
+
+            case "$STATUS" in
+              Success|Failed|Cancelled|TimedOut)
+                break
+                ;;
+            esac
+
+            if [ "$ELAPSED" -ge "$MAX_WAIT_SECONDS" ]; then
+              echo "Timed out after ${MAX_WAIT_SECONDS}s waiting for deploy command to finish (last status: $STATUS)" >&2
+              break
+            fi
+          done
 
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
