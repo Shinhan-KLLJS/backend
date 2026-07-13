@@ -73,7 +73,37 @@ class CampaignRegistrationServiceTest {
         assertThatThrownBy(() -> service.register(
                 fixture.user().getId(), fixture.team().getId(), validRequest(fixture)
         )).isInstanceOfSatisfying(GeneralException.class, exception ->
-                assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_MANAGEMENT_FORBIDDEN));
+                assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.CAMPAIGN_MANAGEMENT_FORBIDDEN));
+    }
+
+    @Test
+    void register_hidesInactiveTeamStatusFromNonMember() {
+        Fixture fixture = persistFixture(
+                TeamMemberRole.OWNER,
+                MediaUnitStatus.ACTIVE,
+                TeamStatus.SUSPENDED,
+                false
+        );
+
+        assertThatThrownBy(() -> service.register(
+                fixture.user().getId(), fixture.team().getId(), validRequest(fixture)
+        )).isInstanceOfSatisfying(GeneralException.class, exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_ACCESS_DENIED));
+    }
+
+    @Test
+    void register_rejectsSuspendedTeamForActiveMember() {
+        Fixture fixture = persistFixture(
+                TeamMemberRole.OWNER,
+                MediaUnitStatus.ACTIVE,
+                TeamStatus.SUSPENDED,
+                true
+        );
+
+        assertThatThrownBy(() -> service.register(
+                fixture.user().getId(), fixture.team().getId(), validRequest(fixture)
+        )).isInstanceOfSatisfying(GeneralException.class, exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_NOT_ACTIVE));
     }
 
     @Test
@@ -141,17 +171,28 @@ class CampaignRegistrationServiceTest {
     }
 
     private Fixture persistFixture(TeamMemberRole role, MediaUnitStatus mediaStatus) {
-        Team team = Team.builder().teamName("캠페인 팀 " + System.nanoTime()).status(TeamStatus.ACTIVE).build();
+        return persistFixture(role, mediaStatus, TeamStatus.ACTIVE, true);
+    }
+
+    private Fixture persistFixture(
+            TeamMemberRole role,
+            MediaUnitStatus mediaStatus,
+            TeamStatus teamStatus,
+            boolean createMembership
+    ) {
+        Team team = Team.builder().teamName("캠페인 팀 " + System.nanoTime()).status(teamStatus).build();
         User user = User.builder().displayName("등록자").status(UserStatus.ACTIVE).build();
         entityManager.persist(team);
         entityManager.persist(user);
-        entityManager.persist(TeamMember.builder()
-                .team(team)
-                .user(user)
-                .role(role)
-                .status(TeamMemberStatus.ACTIVE)
-                .joinedAt(LocalDateTime.now())
-                .build());
+        if (createMembership) {
+            entityManager.persist(TeamMember.builder()
+                    .team(team)
+                    .user(user)
+                    .role(role)
+                    .status(TeamMemberStatus.ACTIVE)
+                    .joinedAt(LocalDateTime.now())
+                    .build());
+        }
 
         MediaUnit mediaUnit = MediaUnit.builder()
                 .boardCode(MediaUnitCommandService.MVP_BOARD_CODE)
