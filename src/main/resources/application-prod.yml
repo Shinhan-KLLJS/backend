@@ -54,6 +54,26 @@ app:
       access-token-ttl-seconds: 900
       refresh-token-ttl-seconds: 1209600
 
+  nts:
+    # 운영은 기본값이 없다. 값이 없으면 사업자등록증 검증이 500으로 막히므로 배포 시 반드시 주입한다.
+    service-key: ${NTS_SERVICE_KEY}
+
+  upload:
+    business-registration:
+      # 전부 기본값이 없다 - 주입하지 않으면 기동 자체가 실패한다. 조용히 잘못된 값으로 뜨는 것보다
+      # 배포가 실패하는 편이 낫다 (토큰 시크릿이 비면 업로드 토큰을 아무나 위조할 수 있다).
+      #
+      # 토큰 시크릿을 교체하면 최대 1시간(token-ttl-seconds) 동안 기존 업로드 토큰이 무효가 되어
+      # 그 사이 팀 생성을 시도하던 사용자는 재업로드해야 한다 - 교체는 사용량이 적은 시간대에 한다.
+      token-secret: ${BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET}
+      bucket: ${BUSINESS_REGISTRATION_BUCKET}
+      ocr-function-name: ${BUSINESS_REGISTRATION_OCR_FUNCTION}
+
+      # 참조 없는 사업자등록증 파일 정리 배치는 운영에서만 켠다.
+      # 민감 문서를 실제로 삭제하므로 로컬/테스트에서 우연히 도는 일이 없어야 한다.
+      cleanup:
+        enabled: true
+
   vision:
     sqs:
       queue-url: ${VISION_SQS_QUEUE_URL}

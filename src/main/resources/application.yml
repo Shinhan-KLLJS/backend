@@ -2,7 +2,66 @@ spring:
   profiles:
     active: local # 로컬 실행 시 기본으로 활성화되는 프로필 (IDE Run 설정 등으로 재정의 가능)
 
+  servlet:
+    multipart:
+      # 사업자등록증 스캔본은 기본값(파일 1MB)을 쉽게 넘긴다.
+      #
+      # 실제 용량 정책(10MB)은 서비스 계층의 app.upload.business-registration.max-file-bytes가
+      # 집행하고, 초과 시 400(BUSINESS_400_003)으로 응답한다 - team-creation-api-spec.md 4절.
+      # 여기 상한을 서비스 상한과 똑같이 10MB로 두면 서블릿이 먼저 걸려 413이 나가버려서,
+      # 문서가 약속한 400은 어떤 입력으로도 나올 수 없는 죽은 코드가 된다. 그래서 여유를 둔다.
+      #
+      # 그래도 상한을 없애지는 않는다 - 서비스 계층은 파일이 이미 메모리/디스크에 올라온 뒤에야
+      # 크기를 볼 수 있으므로, 터무니없이 큰 업로드를 막는 최후의 방어선이 필요하다(413).
+      max-file-size: 20MB
+      max-request-size: 24MB
+
 app:
+  upload:
+    business-registration:
+      # 업로드 토큰 서명 키(HMAC-SHA256). JWT 서명 키와 반드시 분리한다 - 용도가 다른 키를
+      # 공유하면 한쪽이 유출됐을 때 다른 쪽까지 무너진다. 최소 256비트 무작위 값을 쓴다.
+      # 로컬 기본값은 application-local.yml에만 두고, 운영은 SSM SecureString으로 주입한다.
+      token-secret: ${BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET:}
+      # 업로드 후 폼을 확인·수정하고 제출하기까지 충분한 여유. 분실/유출돼도 노출 기간이 짧다.
+      token-ttl-seconds: 3600
+      # 사업자등록증 원본을 두는 private 버킷. 공개 URL은 만들지 않는다.
+      bucket: ${BUSINESS_REGISTRATION_BUCKET:}
+      region: ap-northeast-2
+      # 서버가 정하는 키 prefix. 토큰 검증에서 이 prefix가 아닌 키는 거부한다.
+      key-prefix: team-registrations/
+      max-file-bytes: 10485760 # 10MB
+      # 사업자등록증은 한 장짜리 문서다. 스캔본이 앞뒤로 나뉘거나 여백 페이지가 붙는 경우까지만
+      # 감안한 값이다. OCR은 페이지 수에 비례해 과금되므로 수백 쪽짜리 PDF를 그대로 넘기지 않는다.
+      max-pdf-pages: 5
+      # OCR Lambda. 비어 있으면 호출을 시도하지 않고 OCR 필드를 전부 null로 내려준다
+      # (업로드 자체는 성공한다 - 사용자가 값을 직접 입력하면 된다).
+      ocr-function-name: ${BUSINESS_REGISTRATION_OCR_FUNCTION:}
+      # Lambda 동기 invoke. OCR이 수 초 걸리므로 넉넉히 잡되, 무한정 기다리지는 않는다.
+      ocr-timeout-ms: 30000
+
+      # 참조되지 않는 사업자등록증 파일(업로드만 하고 팀 생성 없이 이탈한 것)을 지우는 배치.
+      cleanup:
+        # 기본값은 항상 false다. 이 값이 true면 실제 S3 버킷을 훑고 객체를 지우므로,
+        # 테스트 실행이나 아무 생각 없는 로컬 기동에서 우연히 켜지면 안 된다.
+        # application-prod.yml에서만 명시적으로 켠다.
+        enabled: ${BUSINESS_REGISTRATION_CLEANUP_ENABLED:false}
+        # 사용량이 적은 새벽. zone은 코드에서 Asia/Seoul로 못박는다.
+        cron: "0 30 4 * * *"
+        # 업로드 토큰 수명(1시간)보다 훨씬 길게 잡는다 - 팀 생성을 진행 중인 사용자의 파일이
+        # 지워지면 안 된다. 문서가 정한 최소값이 2일이다.
+        retention-days: 2
+
+  nts:
+    # 국세청 사업자등록정보 진위확인·상태조회 (공공데이터포털 odcloud)
+    base-url: https://api.odcloud.kr/api/nts-businessman/v1
+    # 공공데이터포털에서 발급받은 서비스 키. 로컬 기본값은 빈 문자열이라 검증 API를 호출하면
+    # 국세청을 부르지 않고 바로 500(BUSINESS_500_001)으로 막힌다 - 키 없이 실수로 붙는 것을 막기 위함.
+    service-key: ${NTS_SERVICE_KEY:}
+    # 외부 API가 응답하지 않을 때 톰캣 스레드가 무한정 잡히지 않도록 반드시 타임아웃을 건다.
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
+
   vision:
     sqs:
       queue-url: ${VISION_SQS_QUEUE_URL:}
