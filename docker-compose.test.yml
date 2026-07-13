@@ -1,0 +1,40 @@
+# 동시성 테스트용 MySQL (./gradlew mysqlConcurrencyTest)
+#
+# 왜 H2로는 안 되는가:
+# H2는 READ COMMITTED로 돌고 MySQL InnoDB는 REPEATABLE READ가 기본이다. 우리가 잡으려는 버그는
+# 정확히 REPEATABLE READ에서만 나타난다 - 트랜잭션이 첫 읽기에서 뜬 스냅샷이 고정돼 상대의 커밋을
+# 못 보고, 그 결과 트랜잭션 안의 재확인 로직이 무력화된다. H2에서는 매 쿼리가 새 스냅샷을 뜨므로
+# 잠금을 지워도 테스트가 통과한다 - 통과하는데 아무것도 보장하지 못하는 테스트가 된다.
+#
+# 사용법:
+#   docker compose -f docker-compose.test.yml up -d
+#   ./gradlew mysqlConcurrencyTest
+#   docker compose -f docker-compose.test.yml down
+#
+# 테스트가 ddl-auto=create-drop으로 스키마를 직접 만들고 지우므로 초기화 스크립트는 필요 없다.
+# 데이터를 볼륨에 남기지 않는다 - 매번 깨끗한 상태로 시작해야 경합 재현이 흔들리지 않는다.
+
+services:
+  mysql-concurrency-test:
+    image: mysql:8.0
+    container_name: klljs-concurrency-test-mysql
+    ports:
+      # 운영/로컬 개발용 MySQL(3306)과 겹치지 않게 13308을 쓴다.
+      # 테스트의 @DynamicPropertySource가 이 포트를 하드코딩하고 있다.
+      - "13308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: klljs_concurrency_test
+    command:
+      # 애플리케이션 스키마와 맞춘다 (V1 마이그레이션이 utf8mb4_0900_ai_ci를 쓴다).
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # 잠금이 안 걸려 경합이 교착에 빠졌을 때, 기본값(50초)까지 기다리지 않고 빨리 실패하게 한다.
+      - --innodb-lock-wait-timeout=10
+    healthcheck:
+      # 컨테이너가 떠도 MySQL이 접속을 받기까지는 시간이 걸린다.
+      # `docker compose up -d --wait`로 준비 완료까지 기다릴 수 있다.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
