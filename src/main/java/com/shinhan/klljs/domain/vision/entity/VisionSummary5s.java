@@ -27,7 +27,7 @@ import java.time.LocalDateTime;
  * Vision AI의 5초 단위 메시지 한 건 = 한 행. 스키마 원본: docs/v2-vision-summary-schema.json
  * seq는 디바이스 재시작 시 1부터 리셋되는 보조 카운터라 idempotency 기준으로 쓸 수 없다 -
  * UNIQUE(media_unit_id, event_time) 위반은 실패가 아니라 "이미 처리됨"으로 취급하고
- * 정상 ACK한다 (저장소 계층에서 멱등 upsert로 처리).
+ * 정상 ACK한다. 저장 writer의 유니크 제약 예외를 fan-out 계층이 DUPLICATE로 분류한다.
  */
 @Entity
 @Table(

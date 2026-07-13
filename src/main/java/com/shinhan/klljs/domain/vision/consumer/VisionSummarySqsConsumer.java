@@ -3,6 +3,7 @@ package com.shinhan.klljs.domain.vision.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shinhan.klljs.domain.vision.config.VisionSqsProperties;
 import com.shinhan.klljs.domain.vision.dto.VisionSummaryMessage;
+import com.shinhan.klljs.domain.vision.service.VisionFanOutResult;
 import com.shinhan.klljs.domain.vision.service.VisionSummaryIngestService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -17,10 +18,10 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 
 /**
- * 스펙 5-1절 "권장 구현 로직"의 백엔드 SQS Consumer.
- * long polling(waitTimeSeconds)으로 대기하는 동안은 API 호출이 아니라 커넥션만 열려있는
- * 상태라, fixedDelay를 짧게 잡아도(폴링이 끝나자마자 바로 다음 폴링 시작) 실제로는
- * long polling 대기시간만큼만 텀이 생긴다.
+ * AWS SQS long polling으로 Vision 메시지를 받고 fan-out 결과에 따라 ACK를 결정한다.
+ *
+ * <p>DeleteMessage가 ACK다. 메시지 파싱·매체 매핑 오류 또는 매체별 재시도 가능 실패가 있으면
+ * 삭제하지 않아 visibility timeout 뒤 다시 받거나 redrive policy에 따라 DLQ로 이동하게 한다.</p>
  */
 @Slf4j
 @Component
@@ -35,10 +36,16 @@ public class VisionSummarySqsConsumer {
 
     @PostConstruct
     void logStartup() {
-        log.info("Vision SQS consumer started: queueUrl={}, region={}, pollWaitTimeSec={}, pollMaxMessages={}",
-                properties.queueUrl(), properties.region(), properties.pollWaitTimeSec(), properties.pollMaxMessages());
+        log.info(
+                "Vision SQS consumer started: queueUrl={}, region={}, pollWaitTimeSec={}, pollMaxMessages={}",
+                properties.queueUrl(),
+                properties.region(),
+                properties.pollWaitTimeSec(),
+                properties.pollMaxMessages()
+        );
     }
 
+    /** long polling이 끝난 뒤 1초 후 다음 poll을 시작한다. */
     @Scheduled(fixedDelay = 1000)
     public void poll() {
         ReceiveMessageResponse response;
@@ -48,8 +55,13 @@ public class VisionSummarySqsConsumer {
                     .maxNumberOfMessages(properties.pollMaxMessages())
                     .waitTimeSeconds(properties.pollWaitTimeSec())
                     .build());
-        } catch (Exception e) {
-            log.error("Vision SQS polling failed: queueUrl={}, region={}", properties.queueUrl(), properties.region(), e);
+        } catch (Exception exception) {
+            log.error(
+                    "Vision SQS polling failed: queueUrl={}, region={}",
+                    properties.queueUrl(),
+                    properties.region(),
+                    exception
+            );
             return;
         }
 
@@ -63,21 +75,48 @@ public class VisionSummarySqsConsumer {
 
     private void handle(Message message) {
         try {
-            VisionSummaryMessage parsed = visionMessageObjectMapper.readValue(message.body(), VisionSummaryMessage.class);
-            boolean saved = ingestService.ingest(parsed, message.body());
-            log.info("Vision summary 처리 완료: device={}, board={}, seq={}, eventTime={}, {}",
-                    parsed.deviceId(), parsed.boardId(), parsed.seq(), parsed.timestamp(),
-                    saved ? "저장" : "중복(이미 처리됨)");
-            deleteMessage(message);
-        } catch (VisionSummaryIngestService.MediaUnitNotFoundException e) {
-            // 재시도해도 해결 안 되는 오류 - 삭제하지 않고 둔다. 큐의 redrive policy에 따라
-            // 일정 횟수 재시도 후 DLQ로 자동 이동한다.
-            log.warn("매체 매핑 실패, 메시지를 삭제하지 않고 DLQ 재시도 경로로 넘김: messageId={}, {}",
-                    message.messageId(), e.getMessage());
-        } catch (Exception e) {
-            // JSON 파싱 실패 등 - 마찬가지로 삭제하지 않는다.
-            log.error("Vision summary 메시지 처리 실패, 메시지를 삭제하지 않고 DLQ 재시도 경로로 넘김: messageId={}",
-                    message.messageId(), e);
+            VisionSummaryMessage parsed =
+                    visionMessageObjectMapper.readValue(message.body(), VisionSummaryMessage.class);
+            VisionFanOutResult result = ingestService.ingest(parsed, message.body());
+
+            log.info(
+                    "Vision summary fan-out 완료: device={}, board={}, seq={}, eventTime={}, "
+                            + "mediaCount={}, saved={}, duplicate={}, noCampaign={}, ambiguous={}, retryableFailure={}",
+                    parsed.deviceId(),
+                    parsed.boardId(),
+                    parsed.seq(),
+                    parsed.timestamp(),
+                    result.processedMediaCount(),
+                    result.savedCount(),
+                    result.duplicateCount(),
+                    result.noCampaignCount(),
+                    result.ambiguousCampaignCount(),
+                    result.retryableFailureCount()
+            );
+
+            if (result.shouldAck()) {
+                deleteMessage(message);
+            } else {
+                log.warn(
+                        "Vision summary 일부 매체 저장 실패로 미ACK: messageId={}, retryableFailureCount={}",
+                        message.messageId(),
+                        result.retryableFailureCount()
+                );
+            }
+        } catch (VisionSummaryIngestService.MediaUnitNotFoundException exception) {
+            // 설정 오류는 반복 처리해도 저장할 수 없으므로 삭제하지 않고 DLQ 경로로 보낸다.
+            log.warn(
+                    "매체 매핑 실패, 메시지를 삭제하지 않고 DLQ 재시도 경로로 넘김: messageId={}, {}",
+                    message.messageId(),
+                    exception.getMessage()
+            );
+        } catch (Exception exception) {
+            // JSON 파싱 실패, 필수 중첩 객체 누락, 예상하지 못한 처리 오류도 ACK하지 않는다.
+            log.error(
+                    "Vision summary 메시지 처리 실패, 메시지를 삭제하지 않고 DLQ 재시도 경로로 넘김: messageId={}",
+                    message.messageId(),
+                    exception
+            );
         }
     }
 

@@ -150,7 +150,10 @@ public class LocalDashboardMockDataInitializer implements ApplicationRunner {
     }
 
     private MediaUnit findOrCreateMediaUnit() {
-        return mediaUnitRepository.findFirstByBoardCodeAndDeviceCodeOrderByIdAsc(BOARD_CODE, DEVICE_CODE)
+        return mediaUnitRepository.findAllByBoardCodeAndDeviceCodeAndStatusOrderByIdAsc(
+                        BOARD_CODE, DEVICE_CODE, MediaUnitStatus.ACTIVE
+                ).stream()
+                .findFirst()
                 .orElseGet(() -> mediaUnitRepository.save(MediaUnit.builder()
                         .boardCode(BOARD_CODE)
                         .deviceCode(DEVICE_CODE)
