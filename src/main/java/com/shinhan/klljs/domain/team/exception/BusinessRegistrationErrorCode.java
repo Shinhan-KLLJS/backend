@@ -80,7 +80,21 @@ public enum BusinessRegistrationErrorCode implements BaseErrorCode {
      * 인증만으로 무제한 호출이 가능하면 로그인한 사용자 하나가 비용을 계속 태울 수 있다.
      */
     UPLOAD_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "BUSINESS_429_001",
-            "사업자등록증 업로드 횟수를 초과했습니다. 24시간 후에 다시 시도해 주세요.");
+            "사업자등록증 업로드 횟수를 초과했습니다. 24시간 후에 다시 시도해 주세요."),
+
+    /**
+     * 인증된 사용자의 users 행이 없다 - 정상 경로에서는 나올 수 없고, 탈퇴 직후의 잔존 토큰
+     * 같은 경계 상황에서만 나온다. "팀 없음"(404)과 구분해 주지 않는 이유는 팀의 존재 여부가
+     * 외부에 새어 나가지 않게 하기 위해서다.
+     */
+    NOT_TEAM_MEMBER(HttpStatus.FORBIDDEN, "BUSINESS_403_001", "해당 팀의 활성 멤버가 아닙니다."),
+
+    /**
+     * 사용자는 팀 하나에만 속한다 (UserMeResponse가 teamId를 하나만 반환하는 것도 이 가정 위에 있다).
+     * 막지 않으면 두 번째 팀은 만들어지되 사용자가 접근할 수 없는 유령 팀이 된다.
+     */
+    ALREADY_HAS_TEAM(HttpStatus.CONFLICT, "BUSINESS_409_002",
+            "이미 소속된 팀이 있습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
