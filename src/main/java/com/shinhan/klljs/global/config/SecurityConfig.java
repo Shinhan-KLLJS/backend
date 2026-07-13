@@ -3,7 +3,6 @@ package com.shinhan.klljs.global.config;
 import com.shinhan.klljs.domain.auth.handler.OAuth2LoginFailureHandler;
 import com.shinhan.klljs.domain.auth.handler.OAuth2LoginSuccessHandler;
 import com.shinhan.klljs.domain.auth.service.CustomOAuth2UserService;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -23,23 +22,17 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler successHandler;
     private final OAuth2LoginFailureHandler failureHandler;
     private final CorsConfigurationSource corsConfigurationSource;
-    private final boolean csrfEnabled;
 
     public SecurityConfig(
             CustomOAuth2UserService customOAuth2UserService,
             OAuth2LoginSuccessHandler successHandler,
             OAuth2LoginFailureHandler failureHandler,
-            CorsConfigurationSource corsConfigurationSource,
-            // 로컬 개발 편의를 위해 application-local.yml에서만 false로 덮어쓴다.
-            // H2 콘솔 등 로컬 전용 도구가 CSRF 예외 목록을 매번 따라잡지 않아도 되게 하기 위함.
-            // 운영은 이 값을 건드리지 않으므로 기본값 true(CSRF 활성)가 그대로 적용된다.
-            @Value("${app.security.csrf-enabled:true}") boolean csrfEnabled
+            CorsConfigurationSource corsConfigurationSource
     ) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.successHandler = successHandler;
         this.failureHandler = failureHandler;
         this.corsConfigurationSource = corsConfigurationSource;
-        this.csrfEnabled = csrfEnabled;
     }
 
     @Bean
@@ -49,25 +42,10 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable) // 기본 로그인 폼 화면 비활성화
                 .httpBasic(AbstractHttpConfigurer::disable) // HTTP Basic 인증 비활성화
 
-                .csrf(csrf -> {
-                    if (!csrfEnabled) {
-                        csrf.disable();
-                        return;
-                    }
-                    // MVP 선택지 A: Refresh Token 쿠키를 SameSite=Lax로 두고
-                    // Refresh/Logout은 TrustedOriginValidator로 Origin을 직접 검증하므로,
-                    // 이 endpoint들은 CSRF 예외로 둔다. h2-console은 자체 로그인 폼이 있어
-                    // Spring Security의 CSRF 토큰을 모르므로 마찬가지로 예외 처리한다.
-                    csrf.ignoringRequestMatchers(
-                            "/oauth2/authorization/kakao",
-                            "/login/oauth2/code/kakao",
-                            "/api/v1/auth/token/refresh",
-                            "/api/v1/auth/logout",
-                            // MVP 관리자 입력 API는 인증 없이 호출하므로 CSRF token을 발급받을 주체가 없다.
-                            "/api/v1/admin/media-units",
-                            "/h2-console/**"
-                    );
-                })
+                // 인증이 전부 Bearer JWT(Authorization 헤더) 기반이라 브라우저가 자동으로 붙이는
+                // 쿠키 기반 ambient credential이 없다 - CSRF가 막으려는 위협 자체가 성립하지 않는다.
+                // Refresh Token 쿠키(SameSite=Lax)는 TrustedOriginValidator가 Origin을 직접 검증한다.
+                .csrf(AbstractHttpConfigurer::disable)
 
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
