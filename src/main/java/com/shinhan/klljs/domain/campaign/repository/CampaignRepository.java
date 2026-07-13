@@ -70,4 +70,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
             @Param("requestedStartDate") LocalDate requestedStartDate,
             @Param("requestedEndDate") LocalDate requestedEndDate
     );
+
+    /** 등록 실패는 수동 확인 대상이므로 날짜 기반 자동 상태 보정에서 제외한다. */
+    List<Campaign> findAllByStatusNot(CampaignStatus excludedStatus);
 }
