@@ -4,8 +4,18 @@ ALTER TABLE campaigns
     ADD COLUMN creative_type VARCHAR(20) NOT NULL AFTER description,
     ADD COLUMN creative_storage_key VARCHAR(1024) NOT NULL AFTER creative_type,
     ADD COLUMN creative_original_filename VARCHAR(255) NOT NULL AFTER creative_storage_key,
-    MODIFY COLUMN media_unit_id BIGINT UNSIGNED NOT NULL,
     ADD CONSTRAINT chk_campaign_creative_type CHECK (creative_type IN ('IMAGE', 'VIDEO'));
+
+-- MySQL does not allow changing a column while an FK constraint references it.
+ALTER TABLE campaigns
+    DROP FOREIGN KEY fk_campaign_media_unit;
+
+ALTER TABLE campaigns
+    MODIFY COLUMN media_unit_id BIGINT UNSIGNED NOT NULL;
+
+ALTER TABLE campaigns
+    ADD CONSTRAINT fk_campaign_media_unit
+        FOREIGN KEY (media_unit_id) REFERENCES media_units (id) ON DELETE RESTRICT;
 
 -- The admin registration API always receives structured region and coordinate values.
 ALTER TABLE media_units
