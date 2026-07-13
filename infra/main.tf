@@ -124,6 +124,8 @@ module "ec2" {
   ami_id                = var.ec2_ami_id
   key_name              = var.key_name
   s3_bucket_arn         = module.s3.bucket_arn
+
+  business_registration_ocr_function_arn = var.business_registration_ocr_function_arn
 }
 
 # ------------------------------------------------------------
@@ -164,4 +166,11 @@ module "ssm_params" {
   campaign_creative_bucket              = module.s3.bucket_name
   campaign_creative_public_base_url     = "https://${module.s3.bucket_name}.s3.${var.aws_region}.amazonaws.com"
   campaign_creative_upload_token_secret = var.campaign_creative_upload_token_secret
+
+  nts_service_key                           = var.nts_service_key
+  business_registration_upload_token_secret = var.business_registration_upload_token_secret
+  business_registration_ocr_function        = var.business_registration_ocr_function
+  # 버킷 이름은 tfvars로 받지 않고 s3 모듈이 실제로 만든 버킷에서 그대로 가져온다 -
+  # 사람이 옮겨 적으면서 어긋날 여지를 없앤다.
+  business_registration_bucket = module.s3.bucket_name
 }

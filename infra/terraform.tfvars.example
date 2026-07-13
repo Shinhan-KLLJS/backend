@@ -49,3 +49,16 @@ vercel_www_cname_target = "xxxxxxxxxxxxxxxx.vercel-dns-xxx.com"
 
 # 서비스 JWT 서명 키 (openssl rand -base64 32 로 생성)
 jwt_secret = "REPLACE_WITH_GENERATED_SECRET"
+
+# ──────────────── 사업자등록증 검증 (DV-112) ────────────────
+# 아래 셋은 기본값이 없는 필수 변수다 - 빠뜨리면 apply가 진행되지 않는다.
+
+# 국세청 사업자등록정보 진위확인 API 서비스 키 (공공데이터포털 odcloud에서 발급)
+nts_service_key = "REPLACE_WITH_ODCLOUD_SERVICE_KEY"
+
+# 업로드 토큰 HMAC 서명 키 (openssl rand -base64 32 로 생성).
+# JWT 서명 키와 반드시 다른 값을 쓴다 - 한쪽이 유출돼도 다른 쪽이 살아남아야 한다.
+business_registration_upload_token_secret = "REPLACE_WITH_GENERATED_SECRET"
+
+# OCR Lambda 함수 이름 (별도 레포 biz-eligibility에서 배포한 함수)
+business_registration_ocr_function = "biz-eligibility-ocr"

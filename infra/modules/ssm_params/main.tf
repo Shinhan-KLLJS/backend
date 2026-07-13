@@ -123,3 +123,47 @@ resource "aws_ssm_parameter" "campaign_creative_upload_token_secret" {
     Project = var.project_name
   }
 }
+
+# ──────────────── 사업자등록증 검증 (DV-112) ────────────────
+# application-prod.yml이 이 값들을 기본값 없이 요구한다 - 없으면 애플리케이션 기동 자체가 실패한다.
+# 조용히 잘못된 값으로 뜨는 것보다 배포가 실패하는 편이 낫다.
+
+resource "aws_ssm_parameter" "nts_service_key" {
+  name  = "/${var.project_name}/prod/nts-service-key"
+  type  = "SecureString"
+  value = var.nts_service_key
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "business_registration_upload_token_secret" {
+  name  = "/${var.project_name}/prod/business-registration-upload-token-secret"
+  type  = "SecureString"
+  value = var.business_registration_upload_token_secret
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "business_registration_ocr_function" {
+  name  = "/${var.project_name}/prod/business-registration-ocr-function"
+  type  = "String" # 함수 이름 자체는 비밀이 아니다. 호출 권한은 IAM으로 통제된다
+  value = var.business_registration_ocr_function
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "business_registration_bucket" {
+  name  = "/${var.project_name}/prod/business-registration-bucket"
+  type  = "String" # 버킷 이름 자체는 비밀이 아니다. 버킷은 public access 차단 + IAM으로만 접근한다
+  value = var.business_registration_bucket
+
+  tags = {
+    Project = var.project_name
+  }
+}
