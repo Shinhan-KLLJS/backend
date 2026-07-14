@@ -107,6 +107,36 @@ class TeamControllerTest {
                 .andExpect(status().isOk());
     }
 
+    /** 인증 없이 호출하면 401이다 - 이 엔드포인트는 로그인한 사용자 전용이다. */
+    @Test
+    void createTeam_withoutAccessToken_isRejected() throws Exception {
+        mockMvc.perform(post(PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("루비 광고 3팀", "루비 광고", "홍길동")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 위조된 documentStorageKey가 HTTP 레벨에서 400(BUSINESS_400_001)으로 매핑되는지 고정한다.
+     * 서비스 레벨 예외는 TeamCreateServiceTest가 다루지만, 그 예외가 실제 응답 코드로
+     * 정확히 변환되는지는 이 파일의 책임이다.
+     */
+    @Test
+    void createTeam_withForgedDocumentStorageKey_returns400() throws Exception {
+        String forged = """
+                {"teamName":"루비 광고 3팀","companyName":"루비 광고","representativeName":"홍길동",
+                 "businessNumber":"495-92-40582","businessOpeningDate":"2024-06-24",
+                 "documentStorageKey":"%s"}
+                """.formatted(signedToken() + "tampered");
+
+        mockMvc.perform(post(PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(forged))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BUSINESS_400_001"));
+    }
+
     private String body(String teamName, String companyName, String representativeName) {
         return """
                 {"teamName":"%s","companyName":"%s","representativeName":"%s",

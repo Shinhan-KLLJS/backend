@@ -232,6 +232,19 @@ class TeamCreateServiceTest {
         assertNothingWasCreated();
     }
 
+    /** 만료된 업로드 토큰도 위조와 똑같이 400이다 (사유를 구분해 주지 않는다 - 판별기 방지). */
+    @Test
+    void create_rejectsExpiredUploadToken() {
+        // 토큰은 NOW에 서명되어 1시간 뒤 만료된다. 검증 시점을 그 뒤로 옮긴다.
+        TeamCreateRequest request = request("광고물제작", "광고대행");
+        given(clock.instant()).willReturn(NOW.plusSeconds(3601));
+
+        assertThatThrownBy(() -> teamCreateService.create(userId, request))
+                .satisfies(hasErrorCode(BusinessRegistrationErrorCode.INVALID_UPLOAD_TOKEN));
+
+        assertNothingWasCreated();
+    }
+
     /** 남이 업로드한 사업자등록증으로는 팀을 만들 수 없다. */
     @Test
     void create_rejectsTokenIssuedToAnotherUser() {

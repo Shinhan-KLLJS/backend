@@ -60,7 +60,7 @@ dependencies {
 	// 매직바이트("%PDF-")만 보면 헤더만 흉내 낸 파일이 통과해 S3에 저장되고 OCR Lambda까지 호출된다
 	// (= 비용). 암호가 걸렸거나 손상된 PDF도 OCR이 못 읽으므로 업로드 시점에 걸러낸다.
 	// 이미지(JPG/PNG)는 JDK의 ImageIO로 디코딩해보면 되어 별도 의존성이 필요 없다.
-	implementation 'org.apache.pdfbox:pdfbox:3.0.3'
+	implementation 'org.apache.pdfbox:pdfbox:3.0.8'
 
 	// prod: RDS MySQL
 	runtimeOnly 'com.mysql:mysql-connector-j'

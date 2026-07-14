@@ -48,6 +48,10 @@ class BusinessRegistrationUploadControllerTest {
     @Autowired
     private JwtTokenService jwtTokenService;
 
+    /** 만료된 토큰을 직접 만들 때만 쓴다 - 발급 서비스는 미래 만료만 만들 수 있다. */
+    @Autowired
+    private org.springframework.security.oauth2.jwt.JwtEncoder jwtEncoder;
+
     @Autowired
     private UserRepository userRepository;
 
@@ -58,11 +62,13 @@ class BusinessRegistrationUploadControllerTest {
     private BusinessRegistrationOcrClient ocrClient;
 
     private String accessToken;
+    private Long userId;
 
     @BeforeEach
     void setUp() {
         User user = userRepository.save(
                 User.builder().displayName("철수").email("chulsoo@example.com").status(UserStatus.ACTIVE).build());
+        this.userId = user.getId();
         this.accessToken = jwtTokenService.generateAccessToken(user.getId());
 
         given(documentStorage.store(any(), any())).willReturn("team-registrations/doc.png");
@@ -140,6 +146,37 @@ class BusinessRegistrationUploadControllerTest {
         mockMvc.perform(multipart(PATH)
                         .file(new MockMultipartFile("file", "reg.png", "image/png", png())))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /** 만료된 액세스 토큰도 토큰 부재와 똑같이 401이다 - 만료 검증이 꺼지면 여기서 잡힌다. */
+    @Test
+    void upload_withExpiredAccessToken_isRejected() throws Exception {
+        mockMvc.perform(multipart(PATH)
+                        .file(new MockMultipartFile("file", "reg.png", "image/png", png()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + expiredAccessToken()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 발급 로직(JwtTokenService)은 항상 미래 만료만 만들 수 있으므로, 같은 서명 키를 쓰는
+     * JwtEncoder로 이미 만료된 토큰을 직접 만든다. 만료 여유(기본 clock skew 60초)를 넘도록
+     * 2시간 전에 만료된 것으로 한다.
+     */
+    private String expiredAccessToken() {
+        java.time.Instant expiredAt = java.time.Instant.now().minus(java.time.Duration.ofHours(2));
+        org.springframework.security.oauth2.jwt.JwtClaimsSet claims =
+                org.springframework.security.oauth2.jwt.JwtClaimsSet.builder()
+                        .issuer("klljs")
+                        .subject(String.valueOf(userId))
+                        .claim("typ", "access")
+                        .issuedAt(expiredAt.minusSeconds(900))
+                        .expiresAt(expiredAt)
+                        .build();
+        return jwtEncoder.encode(org.springframework.security.oauth2.jwt.JwtEncoderParameters.from(
+                        org.springframework.security.oauth2.jwt.JwsHeader
+                                .with(org.springframework.security.oauth2.jose.jws.MacAlgorithm.HS256).build(),
+                        claims))
+                .getTokenValue();
     }
 
     /** 실제로 디코딩되는 PNG. 서버가 저장 전에 이미지를 열어보므로 헤더만 흉내 낸 배열은 400이 된다. */

@@ -137,6 +137,8 @@ public class DocumentContentValidator {
                 throw general;
             }
             if (e instanceof org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException) {
+                // 원인 스택트레이스를 잃지 않도록 예외 객체째 남긴다 (사용자 응답에는 담지 않는다).
+                log.warn("[업로드 거부] 사용자 암호가 걸린 PDF", e);
                 throw new GeneralException(BusinessRegistrationErrorCode.DOCUMENT_PASSWORD_PROTECTED);
             }
             throw unreadable(DocumentType.PDF, "PDF를 열지 못했습니다", e);
@@ -163,8 +165,12 @@ public class DocumentContentValidator {
 
     /** 원인은 로그에만 남기고 사용자에게는 형식 무관한 같은 메시지를 준다 (내부 구조를 흘리지 않는다). */
     private GeneralException unreadable(DocumentType type, String reason, Exception cause) {
-        log.warn("[업로드 거부] 열 수 없는 {} 파일 - {}{}",
-                type, reason, cause == null ? "" : ": " + cause.getMessage());
+        if (cause == null) {
+            log.warn("[업로드 거부] 열 수 없는 {} 파일 - {}", type, reason);
+        } else {
+            // 메시지만 이어 붙이면 스택트레이스가 사라진다 - 예외 객체를 마지막 인자로 넘겨 원인을 보존한다.
+            log.warn("[업로드 거부] 열 수 없는 {} 파일 - {}", type, reason, cause);
+        }
         return new GeneralException(BusinessRegistrationErrorCode.DOCUMENT_UNREADABLE);
     }
 }

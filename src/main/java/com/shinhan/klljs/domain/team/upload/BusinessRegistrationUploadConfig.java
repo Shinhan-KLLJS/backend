@@ -23,12 +23,22 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class BusinessRegistrationUploadConfig {
 
+    /**
+     * S3 putObject 상한. 10MB 이하 파일 업로드에 넉넉한 값이다.
+     * Lambda처럼 타임아웃을 걸지 않으면 네트워크 장애 시 SDK 기본값까지 톰캣 스레드가 묶인다.
+     */
+    private static final Duration S3_CALL_TIMEOUT = Duration.ofSeconds(30);
+
     private final BusinessRegistrationUploadProperties properties;
 
     @Bean
     public S3Client businessRegistrationS3Client() {
         return S3Client.builder()
                 .region(Region.of(properties.region()))
+                .overrideConfiguration(ClientOverrideConfiguration.builder()
+                        .apiCallTimeout(S3_CALL_TIMEOUT)
+                        .apiCallAttemptTimeout(S3_CALL_TIMEOUT)
+                        .build())
                 .build();
     }
 

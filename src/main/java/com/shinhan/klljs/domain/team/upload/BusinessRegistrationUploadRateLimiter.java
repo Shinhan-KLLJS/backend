@@ -49,8 +49,17 @@ public class BusinessRegistrationUploadRateLimiter {
      */
     private static final int SWEEP_THRESHOLD = 10_000;
 
+    /**
+     * 스윕 사이의 최소 간격. 활성 사용자가 많아 스윕 후에도 맵이 threshold 밑으로 안 떨어지면,
+     * 간격 제한 없이는 <b>모든</b> 업로드 요청이 매번 전체 keySet을 순회하게 된다.
+     */
+    private static final Duration SWEEP_MIN_INTERVAL = Duration.ofMinutes(1);
+
     /** userId -> 윈도우 안의 업로드 시각들 (최대 MAX_UPLOADS_PER_WINDOW개). */
     private final Map<Long, Deque<Instant>> uploadsByUser = new ConcurrentHashMap<>();
+
+    /** 마지막 스윕 시각 (epoch millis). CAS로 갱신해 여러 스레드가 동시에 스윕하지 않게 한다. */
+    private final java.util.concurrent.atomic.AtomicLong lastSweepMillis = new java.util.concurrent.atomic.AtomicLong();
 
     private final Clock clock;
 
@@ -96,6 +105,13 @@ public class BusinessRegistrationUploadRateLimiter {
      */
     private void sweepIfCrowded(Instant windowStart) {
         if (uploadsByUser.size() < SWEEP_THRESHOLD) {
+            return;
+        }
+        // 최소 간격 안에 이미 스윕했으면 건너뛴다. CAS 승자 한 스레드만 순회 비용을 낸다.
+        long nowMillis = clock.millis();
+        long lastSweep = lastSweepMillis.get();
+        if (nowMillis - lastSweep < SWEEP_MIN_INTERVAL.toMillis()
+                || !lastSweepMillis.compareAndSet(lastSweep, nowMillis)) {
             return;
         }
         for (Long userId : uploadsByUser.keySet()) {

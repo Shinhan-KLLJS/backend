@@ -158,7 +158,9 @@ public class BusinessRegistrationUploadTokenSigner {
             return objectMapper.readValue(DECODER.decode(payload), BusinessRegistrationUploadToken.class);
         } catch (Exception e) {
             // 서명이 유효한데 파싱이 안 된다면 우리가 발급 형식을 바꿔놓고 옛 토큰을 받은 경우다.
-            throw invalidToken("payload 파싱 실패");
+            // 이때는 원인 스택트레이스가 디버깅에 필요하므로 예외 객체째 남긴다.
+            log.warn("업로드 토큰 payload 파싱 실패", e);
+            throw new GeneralException(BusinessRegistrationErrorCode.INVALID_UPLOAD_TOKEN);
         }
     }
 
