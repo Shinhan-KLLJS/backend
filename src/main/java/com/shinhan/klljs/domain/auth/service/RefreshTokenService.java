@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Set;
 
 /**
  * 서비스 Refresh Token 발급·회전·폐기.
@@ -29,12 +30,16 @@ public class RefreshTokenService {
     private static final String COOKIE_PATH = "/api/v1/auth";
     private static final int RAW_TOKEN_BYTES = 32;
     private static final int FAMILY_ID_BYTES = 16;
+    // 브라우저가 실제로 이해하는 값만 허용한다 - 오타(예: "NOne")가 들어가면 서버는 멀쩡히 뜨지만
+    // 브라우저가 조용히 쿠키를 안 보내서 refresh가 계속 401이 나는, 원인 찾기 어려운 장애가 된다.
+    private static final Set<String> VALID_SAME_SITE_VALUES = Set.of("Lax", "Strict", "None");
 
     private final AuthRefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
     private final RefreshTokenFamilyRevoker familyRevoker;
     private final Clock clock;
     private final long refreshTokenTtlSeconds;
+    private final String cookieSameSite;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public RefreshTokenService(
@@ -42,13 +47,24 @@ public class RefreshTokenService {
             UserRepository userRepository,
             RefreshTokenFamilyRevoker familyRevoker,
             Clock clock,
-            @Value("${app.auth.jwt.refresh-token-ttl-seconds:1209600}") long refreshTokenTtlSeconds
+            @Value("${app.auth.jwt.refresh-token-ttl-seconds:1209600}") long refreshTokenTtlSeconds,
+            // 기본값 Lax를 유지한다 - 프론트와 API가 같은 site일 때 CSRF 방어에 가장 안전하다.
+            // 로컬 프론트(localhost)로 배포된 서버를 cross-site로 테스트할 때만(issue #31) None으로
+            // 임시 오버라이드한다 - None은 Secure 쿠키에서만 허용되는데 이 서버는 항상 HTTPS라 문제없다.
+            @Value("${app.auth.refresh-cookie.same-site:Lax}") String cookieSameSite
     ) {
+        if (!VALID_SAME_SITE_VALUES.contains(cookieSameSite)) {
+            throw new IllegalStateException(
+                    "app.auth.refresh-cookie.same-site 값이 올바르지 않습니다: '" + cookieSameSite
+                            + "' (허용값: " + VALID_SAME_SITE_VALUES + ")"
+            );
+        }
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
         this.familyRevoker = familyRevoker;
         this.clock = clock;
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
+        this.cookieSameSite = cookieSameSite;
     }
 
     @Transactional
@@ -112,7 +128,7 @@ public class RefreshTokenService {
         return ResponseCookie.from(COOKIE_NAME, value)
                 .httpOnly(true)
                 .secure(true)
-                .sameSite("Lax")
+                .sameSite(cookieSameSite)
                 .path(COOKIE_PATH);
     }
 

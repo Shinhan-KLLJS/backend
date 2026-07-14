@@ -74,6 +74,16 @@ resource "aws_ssm_parameter" "app_frontend_url" {
   }
 }
 
+resource "aws_ssm_parameter" "refresh_cookie_same_site" {
+  name  = "/${var.project_name}/prod/refresh-cookie-same-site"
+  type  = "String" # Lax/Strict/None 중 하나일 뿐 비밀은 아니다
+  value = var.refresh_cookie_same_site
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
 resource "aws_ssm_parameter" "jwt_secret" {
   name  = "/${var.project_name}/prod/jwt-secret"
   type  = "SecureString"
