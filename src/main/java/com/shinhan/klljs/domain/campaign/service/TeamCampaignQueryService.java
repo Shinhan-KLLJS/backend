@@ -13,6 +13,7 @@ import com.shinhan.klljs.domain.team.entity.TeamMemberStatus;
 import com.shinhan.klljs.domain.team.exception.TeamErrorCode;
 import com.shinhan.klljs.domain.team.repository.TeamMemberRepository;
 import com.shinhan.klljs.domain.team.repository.TeamRepository;
+import com.shinhan.klljs.global.apiPayload.code.GeneralErrorCode;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
 import com.shinhan.klljs.global.util.KstDateTimes;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,9 @@ public class TeamCampaignQueryService {
         List<Campaign> campaigns = campaignRepository.findByTeamIdWithMediaUnit(teamId);
 
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim().toLowerCase();
+        if (normalizedKeyword != null && normalizedKeyword.length() > 100) {
+            throw new GeneralException(GeneralErrorCode.VALIDATION_ERROR, "keyword는 100자를 초과할 수 없습니다.");
+        }
         Set<CampaignStatus> statusFilter = toCampaignStatuses(status);
 
         LocalDateTime nowKst = KstDateTimes.toKst(LocalDateTime.now(clock));
@@ -95,7 +99,11 @@ public class TeamCampaignQueryService {
         };
     }
 
+    /** 등록 실패는 실제로 송출된 적이 없으므로, 날짜가 우연히 오늘과 겹쳐도 항상 0이다. */
     private int estimateTodayPlayCount(Campaign campaign, LocalDate today, LocalDateTime nowKst) {
+        if (campaign.getStatus() == CampaignStatus.REGISTRATION_FAILED) {
+            return 0;
+        }
         return CampaignPlayCountEstimator.estimateTodayPlayCount(
                 campaign.getExecutionStartDate(),
                 campaign.getExecutionEndDate(),

@@ -19,6 +19,7 @@ import com.shinhan.klljs.domain.team.entity.TeamStatus;
 import com.shinhan.klljs.domain.team.exception.TeamErrorCode;
 import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.entity.UserStatus;
+import com.shinhan.klljs.global.apiPayload.code.GeneralErrorCode;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
 import com.shinhan.klljs.global.util.KstDateTimes;
 import jakarta.persistence.EntityManager;
@@ -181,6 +182,29 @@ class TeamCampaignQueryServiceTest {
         LocalDateTime todayStart = TODAY.atTime(6, 0, 0);
         long elapsedSec = Math.max(0, java.time.Duration.between(todayStart, nowKst).getSeconds());
         return (int) Math.min(elapsedSec / 15, 200);
+    }
+
+    @Test
+    void getCampaigns_registrationFailedTodayPlayCountIsAlwaysZeroEvenIfDatesOverlapToday() {
+        Fixture fixture = persistFixture();
+        // 실행 기간이 오늘을 포함하도록 잡아도, 등록 실패는 실제로 송출된 적이 없으므로 0이어야 한다.
+        persistCampaign(fixture, "등록 실패", CampaignStatus.REGISTRATION_FAILED, TODAY.minusDays(1), TODAY.plusDays(1));
+        entityManager.flush();
+
+        TeamCampaignListResponse response = service.getCampaigns(fixture.userId(), fixture.teamId(), null, null, null);
+
+        assertThat(response.campaigns()).hasSize(1);
+        assertThat(response.campaigns().get(0).todayPlayCount()).isZero();
+    }
+
+    @Test
+    void getCampaigns_throwsValidationErrorWhenKeywordExceeds100Chars() {
+        Fixture fixture = persistFixture();
+        String tooLongKeyword = "가".repeat(101);
+
+        assertThatThrownBy(() -> service.getCampaigns(fixture.userId(), fixture.teamId(), null, tooLongKeyword, null))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(GeneralErrorCode.VALIDATION_ERROR));
     }
 
     @Test
