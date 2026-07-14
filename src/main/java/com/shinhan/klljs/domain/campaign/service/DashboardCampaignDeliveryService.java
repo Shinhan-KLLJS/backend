@@ -4,6 +4,7 @@ import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignDeliveryResponse;
 import com.shinhan.klljs.domain.campaign.dto.PeriodRange;
 import com.shinhan.klljs.domain.campaign.dto.PeriodStatus;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
+import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.CampaignPeriodContext;
 import com.shinhan.klljs.domain.campaign.util.CampaignPlayCountEstimator;
@@ -77,7 +78,10 @@ public class DashboardCampaignDeliveryService {
         int periodDays = (int) (ChronoUnit.DAYS.between(effectivePeriod.startDate(), effectivePeriod.endDate()) + 1);
         int periodTargetPlayCount = dailyTarget * periodDays;
 
-        PlayCountEstimate estimate = estimatePlayCount(effectivePeriod, today, nowKst, dailyTarget);
+        // 등록 실패는 실제로 송출된 적이 없으므로, 선택 기간이 우연히 오늘과 겹쳐도 항상 0이다.
+        PlayCountEstimate estimate = campaign.getStatus() == CampaignStatus.REGISTRATION_FAILED
+                ? new PlayCountEstimate(0, null)
+                : estimatePlayCount(effectivePeriod, today, nowKst, dailyTarget);
 
         int totalPlayTimeMin = (PLAY_INTERVAL_SEC * estimate.playCount()) / 60;
         double progressRate = periodTargetPlayCount == 0 ? 0.0 : (estimate.playCount() * 100.0 / periodTargetPlayCount);
