@@ -105,8 +105,12 @@ jobs:
               "\$image"
           }
 
+          # 90초(45 x 2초) 예산. 60초로 뒀을 때 실제 배포에서 두 번이나 "헬스체크 실패"로
+          # 오탐이 났다 - 앱이 죽은 게 아니라 Hibernate/Flyway 부트스트랩이 70초 넘게 걸린
+          # 것뿐이었는데, 스크립트가 성급하게 포기하고 롤백을 시도해 오히려 사고로 번졌다
+          # (2026-07-14, 아래 롤백 관련 주석 참고). 실측 70초에 여유를 더했다.
           wait_for_health() {
-            for i in \$(seq 1 30); do
+            for i in \$(seq 1 45); do
               sleep 2
               if curl -sf http://localhost:8080/actuator/health >/dev/null 2>&1; then
                 return 0
@@ -129,6 +133,13 @@ jobs:
             docker stop klljs-app || true
             docker rm klljs-app || true
 
+            # 주의: 이 롤백은 "이전 이미지 == 이전 DB 스키마"를 전제한다. 실패한 배포에
+            # DROP COLUMN/DROP TABLE 같은 되돌릴 수 없는 Flyway 마이그레이션이 포함돼 있었다면
+            # (Flyway는 이미 커밋했으므로 DB는 새 스키마로 남아있고), 이전 이미지는 그 스키마를
+            # validate하지 못해 즉시 크래시한다 - 실제로 2026-07-14에 이 경로로 서비스가
+            # 다운됐다(missing column [rejection_reason]). 이런 배포는 애초에 자동 롤백으로
+            # 복구가 안 되니, 컬럼/테이블을 지우는 마이그레이션이 낀 배포가 헬스체크에 실패하면
+            # 사람이 직접 판단해야 한다(새 이미지를 더 오래 기다려보거나, 수동 보정 마이그레이션 작성).
             if [ -n "\$PREVIOUS_IMAGE" ]; then
               echo "Rolling back to previous image: \$PREVIOUS_IMAGE" >&2
               docker pull "\$PREVIOUS_IMAGE" || true
@@ -136,8 +147,11 @@ jobs:
               if wait_for_health; then
                 echo "Rollback to \$PREVIOUS_IMAGE succeeded" >&2
               else
-                echo "Rollback to \$PREVIOUS_IMAGE also failed health check" >&2
+                echo "Rollback to \$PREVIOUS_IMAGE also failed health check - stopping it instead of leaving a crash loop" >&2
                 docker logs klljs-app --tail 200 >&2 || true
+                docker stop klljs-app || true
+                docker rm klljs-app || true
+                echo "Service is now fully down (no container running) - needs manual recovery" >&2
               fi
             else
               echo "No previous image recorded, cannot roll back automatically" >&2
@@ -163,7 +177,10 @@ jobs:
           # 이미 시간 초과로 실패 처리되는 오탐이 발생한다(2026-07-13 CD 실행에서 실제로
           # 발생 - 명령은 2분 3초 후 Success였지만 워크플로우는 그 전에 실패 처리됨).
           # 그래서 고정 waiter 대신 자체 폴링 루프로 대체하고 대기 시간을 넉넉하게 잡는다.
-          MAX_WAIT_SECONDS=300
+          # 최악의 경우(새 이미지 헬스체크 실패 + 롤백도 실패) pull(~20s) + wait_for_health
+          # 1차(최대 90s) + 정리(~10s) + pull(~10s) + wait_for_health 2차(최대 90s)로
+          # 220초 안팎까지 걸릴 수 있어 300초로는 빠듯하다 - 420초로 여유를 둔다.
+          MAX_WAIT_SECONDS=420
           POLL_INTERVAL_SECONDS=5
           ELAPSED=0
           STATUS="Pending"
