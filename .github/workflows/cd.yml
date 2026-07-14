@@ -75,12 +75,6 @@ jobs:
           CAMPAIGN_CREATIVE_PUBLIC_BASE_URL=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-public-base-url --query Parameter.Value --output text --region ap-northeast-2)
           CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
 
-          # 사업자등록증 업로드 (DV-112). application-prod.yml이 이 셋을 기본값 없이 요구하므로
-          # 하나라도 빠지면 컨테이너가 기동 자체에 실패한다.
-          BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/business-registration-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
-          BUSINESS_REGISTRATION_BUCKET=\$(aws ssm get-parameter --name /vision/prod/business-registration-bucket --query Parameter.Value --output text --region ap-northeast-2)
-          BUSINESS_REGISTRATION_OCR_FUNCTION=\$(aws ssm get-parameter --name /vision/prod/business-registration-ocr-function --query Parameter.Value --output text --region ap-northeast-2)
-
           MARKER_FILE=/tmp/klljs_current_image
           PREVIOUS_IMAGE=\$(cat "\$MARKER_FILE" 2>/dev/null || echo "")
 
@@ -99,22 +93,25 @@ jobs:
               -e CAMPAIGN_CREATIVE_BUCKET="\$CAMPAIGN_CREATIVE_BUCKET" \
               -e CAMPAIGN_CREATIVE_PUBLIC_BASE_URL="\$CAMPAIGN_CREATIVE_PUBLIC_BASE_URL" \
               -e CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET="\$CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET" \
-              -e BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET="\$BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET" \
-              -e BUSINESS_REGISTRATION_BUCKET="\$BUSINESS_REGISTRATION_BUCKET" \
-              -e BUSINESS_REGISTRATION_OCR_FUNCTION="\$BUSINESS_REGISTRATION_OCR_FUNCTION" \
               "\$image"
           }
 
-          # 90초(45 x 2초) 예산. 60초로 뒀을 때 실제 배포에서 두 번이나 "헬스체크 실패"로
-          # 오탐이 났다 - 앱이 죽은 게 아니라 Hibernate/Flyway 부트스트랩이 70초 넘게 걸린
-          # 것뿐이었는데, 스크립트가 성급하게 포기하고 롤백을 시도해 오히려 사고로 번졌다
-          # (2026-07-14, 아래 롤백 관련 주석 참고). 실측 70초에 여유를 더했다.
+          # 90초 예산. 60초로 뒀을 때 실제 배포에서 두 번이나 "헬스체크 실패"로 오탐이 났다 -
+          # 앱이 죽은 게 아니라 Hibernate/Flyway 부트스트랩이 70초 넘게 걸린 것뿐이었는데,
+          # 스크립트가 성급하게 포기하고 롤백을 시도해 오히려 사고로 번졌다 (2026-07-14,
+          # 아래 롤백 관련 주석 참고). 실측 70초에 여유를 더했다.
+          #
+          # 횟수 고정 루프(45 x 2초) 대신 SECONDS 기준 절대 데드라인을 쓴다 - curl 자체가
+          # 느려지면(예: 커넥션은 됐는데 응답이 안 옴) 횟수 기반 루프는 실제로 90초를 훨씬
+          # 넘겨 돌 수 있다. curl에도 개별 타임아웃(연결 3초, 전체 5초)을 둬서 한 번의 느린
+          # 요청이 데드라인 감시 자체를 오래 막지 못하게 한다.
           wait_for_health() {
-            for i in \$(seq 1 45); do
-              sleep 2
-              if curl -sf http://localhost:8080/actuator/health >/dev/null 2>&1; then
+            local deadline=\$((SECONDS + 90))
+            while [ "\$SECONDS" -lt "\$deadline" ]; do
+              if curl -sf --connect-timeout 3 --max-time 5 http://localhost:8080/actuator/health >/dev/null 2>&1; then
                 return 0
               fi
+              sleep 2
             done
             return 1
           }
@@ -149,9 +146,12 @@ jobs:
               else
                 echo "Rollback to \$PREVIOUS_IMAGE also failed health check - stopping it instead of leaving a crash loop" >&2
                 docker logs klljs-app --tail 200 >&2 || true
-                docker stop klljs-app || true
-                docker rm klljs-app || true
-                echo "Service is now fully down (no container running) - needs manual recovery" >&2
+                docker rm -f klljs-app || true
+                if [ -n "\$(docker ps -a -q --filter name=klljs-app)" ]; then
+                  echo "Failed to remove the crashed rollback container - it may still be restart-looping, check manually" >&2
+                else
+                  echo "Service is now fully down (no container running) - needs manual recovery" >&2
+                fi
               fi
             else
               echo "No previous image recorded, cannot roll back automatically" >&2
@@ -203,6 +203,12 @@ jobs:
 
             if [ "$ELAPSED" -ge "$MAX_WAIT_SECONDS" ]; then
               echo "Timed out after ${MAX_WAIT_SECONDS}s waiting for deploy command to finish (last status: $STATUS)" >&2
+              # 로컬 폴링만 포기하는 거고 원격 SSM 명령은 인스턴스에서 계속 돈다 - 그대로 두면
+              # 나중에 재시도한 배포와 동시에 docker stop/rm/run을 실행해 서로 꼬일 수 있다.
+              # 취소해서 다음 배포가 깨끗한 상태에서 시작하게 한다.
+              aws ssm cancel-command \
+                --command-id "$COMMAND_ID" \
+                --instance-ids "${{ steps.ec2.outputs.instance_id }}" || true
               break
             fi
           done
