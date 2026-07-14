@@ -1,5 +1,6 @@
 package com.shinhan.klljs.domain.campaign.controller;
 
+import com.shinhan.klljs.domain.campaign.dto.TeamCampaignDetailResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignListResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignSort;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignStatusFilter;
@@ -86,5 +87,90 @@ public interface TeamCampaignControllerDocs {
             String keyword,
             @Parameter(description = "정렬 기준. 생략하면 NAME")
             TeamCampaignSort sort
+    );
+
+    @Operation(
+            summary = "캠페인 상세정보 조회",
+            description = """
+                    캠페인 등록 3단계 "최종 확인" 화면과 같은 내용을 그대로 보여준다 (campaign-page-api-spec.md 5절).
+                    `GET /api/v1/dashboard/campaigns/{campaignId}`(홈 대시보드용)와 달리 매체 조인 정보
+                    (매체명/주소/규격/해상도/형태)와 소재 조회 URL(`creativeUrl`)을 포함한다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "isSuccess": true,
+                              "code": "COMMON_200_001",
+                              "message": "성공적으로 요청을 처리했습니다.",
+                              "result": {
+                                "campaignId": 31,
+                                "campaignName": "0711 나이키 썸머 프로모션 홍보 영상",
+                                "brandName": "나이키 코리아",
+                                "executionStartDate": "2026-07-11",
+                                "executionEndDate": "2026-07-12",
+                                "dailyTargetPlayCount": 100,
+                                "description": "브랜드 인지도 확대를 주요 목표로 설정",
+                                "creativeType": "VIDEO",
+                                "creativeUrl": "https://cdn.example.com/campaign-creatives/42/550e8400-e29b-41d4-a716-446655440000",
+                                "mediaUnitId": 12,
+                                "mediaName": "파르나스 미디어타워 전광판",
+                                "mediaLocationAddress": "서울 강남구 영동대로 513",
+                                "mediaWidthMm": 81000,
+                                "mediaHeightMm": 20000,
+                                "mediaResolutionWidthPx": 1215,
+                                "mediaResolutionHeightPx": 1792,
+                                "mediaShapeTypes": ["FLAT", "VERTICAL"]
+                              }
+                            }
+                            """))
+            ),
+            @ApiResponse(responseCode = "403", description = "요청자가 이 팀 소속이 아님 (code: `TEAM_403_001`)"),
+            @ApiResponse(responseCode = "404", description = "팀이 없음 (`TEAM_404_001`) 또는 캠페인이 없거나 이 팀 소유가 아님 (`CAMPAIGN_404_001`)")
+    })
+    com.shinhan.klljs.global.apiPayload.ApiResponse<TeamCampaignDetailResponse> getCampaignDetail(
+            @Parameter(hidden = true) Jwt jwt,
+            @Parameter(description = "팀 ID", example = "1")
+            Long teamId,
+            @Parameter(description = "캠페인 ID", example = "31")
+            Long campaignId
+    );
+
+    @Operation(
+            summary = "캠페인 삭제",
+            description = """
+                    캠페인을 하드 삭제한다 (campaign-page-api-spec.md 6절) - `campaigns` row 자체가
+                    지워지며, 되돌릴 수 없다. 상태(집행 전/중/완료)와 무관하게 항상 허용한다.
+                    이 캠페인을 참조하던 `vision_summary_5s` 행은 DB의 `ON DELETE SET NULL`에 따라
+                    `campaign_id`만 `NULL`로 바뀌고 그대로 남는다.
+
+                    ### 접근 권한
+                    캠페인 등록과 동일한 기준 - 팀의 `ACTIVE` `OWNER`/`ADMIN`만 가능하다. `MEMBER`는 403.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "삭제 성공. `ApiResponse<Void>` 응답에서 null인 `result` 필드는 생략됨",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "isSuccess": true,
+                              "code": "COMMON_200_001",
+                              "message": "성공적으로 요청을 처리했습니다."
+                            }
+                            """))
+            ),
+            @ApiResponse(responseCode = "403", description = "요청자가 이 팀 소속이 아님 (`TEAM_403_001`) 또는 `MEMBER`임 (`TEAM_403_003`)"),
+            @ApiResponse(responseCode = "404", description = "팀이 없음 (`TEAM_404_001`) 또는 캠페인이 없거나 이 팀 소유가 아님 (`CAMPAIGN_404_001`)")
+    })
+    com.shinhan.klljs.global.apiPayload.ApiResponse<Void> deleteCampaign(
+            @Parameter(hidden = true) Jwt jwt,
+            @Parameter(description = "팀 ID", example = "1")
+            Long teamId,
+            @Parameter(description = "캠페인 ID", example = "31")
+            Long campaignId
     );
 }

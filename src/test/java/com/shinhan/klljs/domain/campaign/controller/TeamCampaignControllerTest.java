@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -76,15 +77,78 @@ class TeamCampaignControllerTest {
                 .andExpect(jsonPath("$.code").value("TEAM_404_001"));
     }
 
+    @Test
+    void getCampaignDetail_returnsDetailForAuthenticatedMember() throws Exception {
+        Fixture fixture = persistFixture();
+
+        mockMvc.perform(get("/api/v1/teams/{teamId}/campaigns/{campaignId}", fixture.teamId(), fixture.campaignId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(fixture.userId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.campaignName").value("나이키 캠페인"))
+                .andExpect(jsonPath("$.result.mediaName").value("컨트롤러 매체"))
+                .andExpect(jsonPath("$.result.creativeUrl").value(org.hamcrest.Matchers.containsString(
+                        "campaign-creatives/controller-test/object")));
+    }
+
+    @Test
+    void getCampaignDetail_requiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/teams/{teamId}/campaigns/{campaignId}", 1L, 1L))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void getCampaignDetail_returns404WhenCampaignDoesNotExist() throws Exception {
+        Fixture fixture = persistFixture();
+
+        mockMvc.perform(get("/api/v1/teams/{teamId}/campaigns/{campaignId}", fixture.teamId(), 999_999L)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(fixture.userId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CAMPAIGN_404_001"));
+    }
+
+    @Test
+    void deleteCampaign_removesCampaignForOwnerAndSubsequentDetailLookupIs404() throws Exception {
+        Fixture fixture = persistFixture();
+
+        mockMvc.perform(delete("/api/v1/teams/{teamId}/campaigns/{campaignId}", fixture.teamId(), fixture.campaignId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(fixture.userId())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/teams/{teamId}/campaigns/{campaignId}", fixture.teamId(), fixture.campaignId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(fixture.userId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CAMPAIGN_404_001"));
+    }
+
+    @Test
+    void deleteCampaign_requiresAuthentication() throws Exception {
+        mockMvc.perform(delete("/api/v1/teams/{teamId}/campaigns/{campaignId}", 1L, 1L))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deleteCampaign_returns403ForMember() throws Exception {
+        Fixture fixture = persistFixture(TeamMemberRole.MEMBER);
+
+        mockMvc.perform(delete("/api/v1/teams/{teamId}/campaigns/{campaignId}", fixture.teamId(), fixture.campaignId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(fixture.userId())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("TEAM_403_003"));
+    }
+
     private Fixture persistFixture() {
-        Team team = Team.builder().teamName("컨트롤러 캠페인 목록 팀").status(TeamStatus.ACTIVE).build();
+        return persistFixture(TeamMemberRole.OWNER);
+    }
+
+    private Fixture persistFixture(TeamMemberRole role) {
+        Team team = Team.builder().teamName("컨트롤러 캠페인 목록 팀 " + System.nanoTime()).status(TeamStatus.ACTIVE).build();
         User user = User.builder().displayName("조회자").status(UserStatus.ACTIVE).build();
         entityManager.persist(team);
         entityManager.persist(user);
         entityManager.persist(TeamMember.builder()
                 .team(team)
                 .user(user)
-                .role(TeamMemberRole.MEMBER)
+                .role(role)
                 .status(TeamMemberStatus.ACTIVE)
                 .joinedAt(LocalDateTime.now())
                 .build());
@@ -109,7 +173,7 @@ class TeamCampaignControllerTest {
         entityManager.persist(mediaUnit);
 
         LocalDate today = LocalDate.now();
-        entityManager.persist(Campaign.builder()
+        Campaign campaign = Campaign.builder()
                 .team(team)
                 .mediaUnit(mediaUnit)
                 .createdBy(user)
@@ -122,16 +186,17 @@ class TeamCampaignControllerTest {
                 .creativeStorageKey("campaign-creatives/controller-test/object")
                 .creativeOriginalFilename("poster.png")
                 .status(CampaignStatus.IN_EXECUTION)
-                .build());
+                .build();
+        entityManager.persist(campaign);
         entityManager.flush();
 
-        return new Fixture(team.getId(), team.getTeamName(), user.getId());
+        return new Fixture(team.getId(), team.getTeamName(), user.getId(), campaign.getId());
     }
 
     private String bearer(Long userId) {
         return "Bearer " + jwtTokenService.generateAccessToken(userId);
     }
 
-    private record Fixture(Long teamId, String teamName, Long userId) {
+    private record Fixture(Long teamId, String teamName, Long userId, Long campaignId) {
     }
 }

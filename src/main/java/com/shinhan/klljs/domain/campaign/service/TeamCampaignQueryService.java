@@ -1,11 +1,14 @@
 package com.shinhan.klljs.domain.campaign.service;
 
+import com.shinhan.klljs.domain.campaign.config.CampaignCreativeProperties;
+import com.shinhan.klljs.domain.campaign.dto.TeamCampaignDetailResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignListResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignSort;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignStatusFilter;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignSummary;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
+import com.shinhan.klljs.domain.campaign.exception.CampaignErrorCode;
 import com.shinhan.klljs.domain.campaign.repository.CampaignRepository;
 import com.shinhan.klljs.domain.campaign.util.CampaignPlayCountEstimator;
 import com.shinhan.klljs.domain.team.entity.Team;
@@ -42,6 +45,7 @@ public class TeamCampaignQueryService {
     private final CampaignRepository campaignRepository;
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final CampaignCreativeProperties creativeProperties;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -76,6 +80,38 @@ public class TeamCampaignQueryService {
                 .toList();
 
         return TeamCampaignListResponse.from(team.getTeamName(), result);
+    }
+
+    /**
+     * 캠페인 상세정보 조회 (스펙 5절). 캠페인 등록 3단계 "최종 확인"과 같은 내용을 그대로 보여준다.
+     */
+    @Transactional(readOnly = true)
+    public TeamCampaignDetailResponse getCampaignDetail(Long userId, Long teamId, Long campaignId) {
+        teamRepository.findById(teamId)
+                .orElseThrow(() -> new GeneralException(TeamErrorCode.TEAM_NOT_FOUND));
+
+        boolean isMember = teamMemberRepository.existsByUserIdAndTeamIdAndStatus(
+                userId, teamId, TeamMemberStatus.ACTIVE);
+        if (!isMember) {
+            throw new GeneralException(TeamErrorCode.TEAM_ACCESS_DENIED);
+        }
+
+        Campaign campaign = getOwnedCampaign(teamId, campaignId);
+        String creativeUrl = creativeProperties.publicBaseUrl() + "/" + campaign.getCreativeStorageKey();
+        return TeamCampaignDetailResponse.from(campaign, creativeUrl);
+    }
+
+    /**
+     * 캠페인이 없거나(삭제됐거나 애초에 없음) 이 팀 소유가 아니면 둘 다 CAMPAIGN_NOT_FOUND(404)로
+     * 취급한다 - 다른 팀 소유 캠페인이 존재한다는 사실 자체를 노출하지 않기 위해서다.
+     */
+    private Campaign getOwnedCampaign(Long teamId, Long campaignId) {
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new GeneralException(CampaignErrorCode.CAMPAIGN_NOT_FOUND));
+        if (!campaign.getTeam().getId().equals(teamId)) {
+            throw new GeneralException(CampaignErrorCode.CAMPAIGN_NOT_FOUND);
+        }
+        return campaign;
     }
 
     /** 스펙 2-3절 매핑: BEFORE_EXECUTION은 REGISTERED도 함께 포함한다. null(전체)이면 필터링하지 않는다. */
