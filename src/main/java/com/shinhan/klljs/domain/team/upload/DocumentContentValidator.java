@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
+import javax.imageio.ImageTypeSpecifier;
 import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -30,6 +31,12 @@ import java.util.Iterator;
 @Component
 @RequiredArgsConstructor
 public class DocumentContentValidator {
+
+    /**
+     * max-image-pixels 상한이 가정하는 픽셀당 바이트 수 (8비트 RGBA 기준).
+     * 상한 픽셀 × 이 값이 디코딩 바이트 예산이 된다 - 30MP면 약 120MB.
+     */
+    private static final long REFERENCE_BYTES_PER_PIXEL = 4L;
 
     private final BusinessRegistrationUploadProperties properties;
 
@@ -74,6 +81,17 @@ public class DocumentContentValidator {
                 if (width * height > properties.maxImagePixels()) {
                     log.warn("[업로드 거부] 이미지 픽셀 수 초과: {}x{} (상한 {}픽셀)",
                             width, height, properties.maxImagePixels());
+                    throw new GeneralException(BusinessRegistrationErrorCode.DOCUMENT_IMAGE_TOO_LARGE);
+                }
+
+                // 픽셀 수 상한만으로는 부족하다 - 16비트 RGBA PNG는 픽셀당 8바이트로 디코딩되어
+                // 같은 픽셀 수라도 힙을 두 배로 먹는다. 헤더가 말해주는 픽셀당 바이트 수를 곱해
+                // "8비트 RGBA 기준 상한"과 같은 바이트 예산(상한 픽셀 × 4바이트)을 넘지 않게 한다.
+                long estimatedBytes = width * height * bytesPerPixel(reader);
+                if (estimatedBytes > properties.maxImagePixels() * REFERENCE_BYTES_PER_PIXEL) {
+                    log.warn("[업로드 거부] 디코딩 예상 크기 초과: {}x{}, 약 {}MB (예산 {}MB)",
+                            width, height, estimatedBytes >> 20,
+                            (properties.maxImagePixels() * REFERENCE_BYTES_PER_PIXEL) >> 20);
                     throw new GeneralException(BusinessRegistrationErrorCode.DOCUMENT_IMAGE_TOO_LARGE);
                 }
 
@@ -123,6 +141,24 @@ public class DocumentContentValidator {
             }
             throw unreadable(DocumentType.PDF, "PDF를 열지 못했습니다", e);
         }
+    }
+
+    /**
+     * 헤더가 선언한 형식으로 디코딩 시 픽셀당 몇 바이트가 되는지 읽는다. <b>픽셀은 만들지 않는다.</b>
+     * 형식 정보를 못 읽으면 보수적으로 기준값(4바이트)을 쓴다 - 어차피 진짜로 못 여는 파일은
+     * 바로 뒤의 read(0)에서 걸린다.
+     */
+    private static long bytesPerPixel(ImageReader reader) {
+        try {
+            Iterator<ImageTypeSpecifier> types = reader.getImageTypes(0);
+            if (types.hasNext()) {
+                int bitsPerPixel = types.next().getColorModel().getPixelSize();
+                return Math.max(1, (bitsPerPixel + 7) / 8);
+            }
+        } catch (IOException | RuntimeException e) {
+            log.debug("이미지 형식 정보를 읽지 못해 기준 픽셀 크기(4바이트)로 계산한다: {}", e.getMessage());
+        }
+        return REFERENCE_BYTES_PER_PIXEL;
     }
 
     /** 원인은 로그에만 남기고 사용자에게는 형식 무관한 같은 메시지를 준다 (내부 구조를 흘리지 않는다). */

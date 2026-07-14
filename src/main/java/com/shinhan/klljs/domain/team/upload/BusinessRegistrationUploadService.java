@@ -48,8 +48,8 @@ public class BusinessRegistrationUploadService {
         // 토큰은 업로드가 성공한 뒤에만 발급한다. 그래야 "유효한 토큰 = 그 객체가 존재"가 성립해서
         // 팀 생성 시점에 S3를 다시 조회하지 않아도 된다 (문서 5절).
         //
-        // 업태·종목은 응답 본문이 아니라 이 토큰 안에 담는다. 사용자가 고칠 수 없게 하기 위해서다 -
-        // 폼으로 받으면 음식점업 사업자가 "광고대행"으로 바꿔 스스로를 승인시킬 수 있다 (§7).
+        // 업태·종목은 응답(화면 표시용)과 별개로 이 토큰 안에도 서명해 담는다. 팀 생성 시 DB에
+        // 저장되는 값은 토큰 쪽을 쓴다 - 전송 구간에서 변조된 값이 OCR 원본 행세를 할 수 없다.
         String documentStorageKey = tokenSigner.sign(s3Key, userId, ocr.businessType(), ocr.businessItem());
 
         return BusinessRegistrationUploadResponse.of(documentStorageKey, ocr);

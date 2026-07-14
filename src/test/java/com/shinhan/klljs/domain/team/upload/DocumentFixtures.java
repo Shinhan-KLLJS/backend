@@ -63,12 +63,25 @@ public final class DocumentFixtures {
      * 손으로 만들어 "헤더는 읽히지만 디코딩하면 안 되는" 파일을 흉내 낸다.
      */
     public static byte[] hugeDimensionPng() {
+        return pngDeclaring(50_000, 50_000, 8);
+    }
+
+    /**
+     * 픽셀 수(25MP)는 상한(30MP) 안이지만 <b>16비트 RGBA(픽셀당 8바이트)</b>라 디코딩하면
+     * 약 200MB가 되는 PNG. 픽셀 수만 보면 통과하고 바이트 예산(120MB)으로는 걸려야 한다.
+     */
+    public static byte[] sixteenBitPngWithinPixelCap() {
+        return pngDeclaring(5_000, 5_000, 16);
+    }
+
+    /** 시그니처와 IHDR 청크(CRC 포함)만 손으로 만든 PNG. 헤더는 읽히지만 픽셀 데이터는 없다. */
+    private static byte[] pngDeclaring(int width, int height, int bitDepth) {
         byte[] signature = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
 
-        // IHDR data(13바이트): width, height, bit depth 8, color type 6(RGBA), 압축/필터/인터레이스 0
+        // IHDR data(13바이트): width, height, bit depth, color type 6(RGBA), 압축/필터/인터레이스 0
         java.nio.ByteBuffer ihdrData = java.nio.ByteBuffer.allocate(13);
-        ihdrData.putInt(50_000).putInt(50_000)
-                .put((byte) 8).put((byte) 6).put((byte) 0).put((byte) 0).put((byte) 0);
+        ihdrData.putInt(width).putInt(height)
+                .put((byte) bitDepth).put((byte) 6).put((byte) 0).put((byte) 0).put((byte) 0);
 
         // CRC는 청크 타입("IHDR")과 data에 대해 계산한다 - CRC가 틀리면 리더가 헤더조차 안 읽는다.
         java.util.zip.CRC32 crc = new java.util.zip.CRC32();

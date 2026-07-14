@@ -103,6 +103,9 @@ public interface BusinessRegistrationUploadControllerDocs {
                     - `BUSINESS_400_007`: PDF 페이지 수 초과 (5쪽)
                     - `BUSINESS_400_008`: 이미지 해상도(픽셀 수) 초과 (30MP)"""),
             @ApiResponse(responseCode = "401", description = "`Authorization` 헤더의 액세스 토큰이 만료·위조됨"),
+            @ApiResponse(responseCode = "413", description = """
+                    `COMMON_413_001`: 서블릿 multipart 상한(20MB) 초과 — 서비스 계층(10MB, 400)에 닿기 전의
+                    최후 방어선이라 응답 코드가 다르다"""),
             @ApiResponse(responseCode = "429", description = "`BUSINESS_429_001`: 24시간 내 업로드 횟수 초과"),
             @ApiResponse(responseCode = "500", description = """
                     - `BUSINESS_500_002`: 서버에 업로드 토큰 서명 키가 설정되지 않음

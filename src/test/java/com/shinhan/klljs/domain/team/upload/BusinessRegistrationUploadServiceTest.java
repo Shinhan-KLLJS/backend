@@ -216,6 +216,25 @@ class BusinessRegistrationUploadServiceTest {
         verify(ocrClient, never()).extract(anyString());
     }
 
+    /**
+     * 픽셀 수 상한 안이라도 <b>비트 깊이가 높아 디코딩 바이트가 예산을 넘는 이미지</b>는 거부한다.
+     * 16비트 RGBA는 픽셀당 8바이트라, 25MP(상한 30MP 이내)여도 디코딩하면 약 200MB가 된다 -
+     * 픽셀 수만 보면 "OOM 방지 120MB 예산"이 조용히 2배로 뚫린다.
+     */
+    @Test
+    void upload_rejectsSixteenBitImageWhoseDecodedSizeExceedsTheBudget() {
+        MultipartFile deepBomb = new MockMultipartFile(
+                "file", "deep.png", "image/png", DocumentFixtures.sixteenBitPngWithinPixelCap());
+
+        assertThatThrownBy(() -> uploadService.upload(USER_ID, deepBomb))
+                .isInstanceOf(GeneralException.class)
+                .satisfies(ex -> assertThat(((GeneralException) ex).getErrorCode())
+                        .isEqualTo(BusinessRegistrationErrorCode.DOCUMENT_IMAGE_TOO_LARGE));
+
+        verify(documentStorage, never()).store(any(), any());
+        verify(ocrClient, never()).extract(anyString());
+    }
+
     /** "%PDF-" 헤더만 붙인 파일도 마찬가지다. 실제로 파싱해봐야 걸린다. */
     @Test
     void upload_rejectsFilePretendingToBePdf() {

@@ -85,14 +85,24 @@ public class BusinessRegistrationUploadRateLimiter {
         });
     }
 
-    /** 윈도우가 통째로 지난 사용자는 지운다. 항목이 많아졌을 때만 훑어서 평소 비용을 0으로 둔다. */
+    /**
+     * 윈도우가 통째로 지난 사용자는 지운다. 항목이 많아졌을 때만 훑어서 평소 비용을 0으로 둔다.
+     *
+     * values().removeIf를 쓰지 않는 이유: 술어(peekLast)를 잠금 없이 평가하고 제거 직전에
+     * <b>값 참조 동일성만</b> 재확인한다. compute는 덱을 제자리 변경하므로 참조가 늘 같아서,
+     * "만료" 판정 직후 같은 덱에 addLast된 새 기록까지 엔트리째 지워질 수 있다(카운터 리셋).
+     * computeIfPresent는 checkAndRecord의 compute와 같은 빈(bin) 잠금 안에서 판정·제거하므로
+     * 이 경쟁이 없다.
+     */
     private void sweepIfCrowded(Instant windowStart) {
         if (uploadsByUser.size() < SWEEP_THRESHOLD) {
             return;
         }
-        uploadsByUser.values().removeIf(uploads -> {
-            Instant last = uploads.peekLast();
-            return last == null || last.isBefore(windowStart);
-        });
+        for (Long userId : uploadsByUser.keySet()) {
+            uploadsByUser.computeIfPresent(userId, (id, uploads) -> {
+                Instant last = uploads.peekLast();
+                return (last == null || last.isBefore(windowStart)) ? null : uploads;
+            });
+        }
     }
 }
