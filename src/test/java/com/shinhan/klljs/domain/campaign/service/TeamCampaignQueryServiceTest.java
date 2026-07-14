@@ -249,6 +249,84 @@ class TeamCampaignQueryServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_ACCESS_DENIED));
     }
 
+    @Test
+    void getCampaignDetail_returnsFullDetailsForAccessibleCampaign() {
+        Fixture fixture = persistFixture();
+        Campaign campaign = persistCampaign(
+                fixture, "나이키 캠페인", CampaignStatus.IN_EXECUTION, TODAY.minusDays(1), TODAY.plusDays(1));
+        entityManager.flush();
+
+        var detail = service.getCampaignDetail(fixture.userId(), fixture.teamId(), campaign.getId());
+
+        assertThat(detail.campaignId()).isEqualTo(campaign.getId());
+        assertThat(detail.campaignName()).isEqualTo("나이키 캠페인");
+        assertThat(detail.brandName()).isEqualTo("브랜드");
+        assertThat(detail.executionStartDate()).isEqualTo(TODAY.minusDays(1));
+        assertThat(detail.executionEndDate()).isEqualTo(TODAY.plusDays(1));
+        assertThat(detail.dailyTargetPlayCount()).isEqualTo(200);
+        assertThat(detail.description()).isEqualTo("메모");
+        assertThat(detail.creativeType()).isEqualTo(CampaignCreativeType.IMAGE);
+        assertThat(detail.creativeUrl()).contains(campaign.getCreativeStorageKey());
+        assertThat(detail.mediaUnitId()).isEqualTo(fixture.mediaUnit().getId());
+        assertThat(detail.mediaName()).isEqualTo("테스트 매체");
+        assertThat(detail.mediaLocationAddress()).isEqualTo("서울 강남구 영동대로 506");
+        assertThat(detail.mediaWidthMm()).isEqualTo(1000);
+        assertThat(detail.mediaHeightMm()).isEqualTo(500);
+        assertThat(detail.mediaResolutionWidthPx()).isEqualTo(1920);
+        assertThat(detail.mediaResolutionHeightPx()).isEqualTo(1080);
+        assertThat(detail.mediaShapeTypes()).containsExactly(com.shinhan.klljs.domain.media.entity.MediaUnitShapeType.FLAT);
+    }
+
+    @Test
+    void getCampaignDetail_throwsTeamNotFoundForNonExistentTeam() {
+        Fixture fixture = persistFixture();
+        Campaign campaign = persistCampaign(
+                fixture, "나이키 캠페인", CampaignStatus.IN_EXECUTION, TODAY.minusDays(1), TODAY.plusDays(1));
+        entityManager.flush();
+
+        assertThatThrownBy(() -> service.getCampaignDetail(fixture.userId(), 999_999L, campaign.getId()))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_NOT_FOUND));
+    }
+
+    @Test
+    void getCampaignDetail_throwsAccessDeniedForNonMember() {
+        Fixture fixture = persistFixture();
+        Campaign campaign = persistCampaign(
+                fixture, "나이키 캠페인", CampaignStatus.IN_EXECUTION, TODAY.minusDays(1), TODAY.plusDays(1));
+        User outsider = User.builder().displayName("외부인").status(UserStatus.ACTIVE).build();
+        entityManager.persist(outsider);
+        entityManager.flush();
+
+        assertThatThrownBy(() -> service.getCampaignDetail(outsider.getId(), fixture.teamId(), campaign.getId()))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_ACCESS_DENIED));
+    }
+
+    @Test
+    void getCampaignDetail_throwsCampaignNotFoundWhenCampaignDoesNotExist() {
+        Fixture fixture = persistFixture();
+
+        assertThatThrownBy(() -> service.getCampaignDetail(fixture.userId(), fixture.teamId(), 999_999L))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                com.shinhan.klljs.domain.campaign.exception.CampaignErrorCode.CAMPAIGN_NOT_FOUND));
+    }
+
+    @Test
+    void getCampaignDetail_throwsCampaignNotFoundWhenCampaignBelongsToDifferentTeam() {
+        Fixture fixture = persistFixture();
+        Fixture otherTeam = persistFixture();
+        Campaign otherCampaign = persistCampaign(
+                otherTeam, "다른 팀 캠페인", CampaignStatus.IN_EXECUTION, TODAY.minusDays(1), TODAY.plusDays(1));
+        entityManager.flush();
+
+        assertThatThrownBy(() -> service.getCampaignDetail(fixture.userId(), fixture.teamId(), otherCampaign.getId()))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                com.shinhan.klljs.domain.campaign.exception.CampaignErrorCode.CAMPAIGN_NOT_FOUND));
+    }
+
     private Fixture persistFixture() {
         Team team = Team.builder().teamName("캠페인 목록 팀 " + System.nanoTime()).status(TeamStatus.ACTIVE).build();
         User user = User.builder().displayName("조회자").status(UserStatus.ACTIVE).build();
@@ -285,12 +363,12 @@ class TeamCampaignQueryServiceTest {
         return new Fixture(team.getId(), team.getTeamName(), user.getId(), mediaUnit);
     }
 
-    private void persistCampaign(
+    private Campaign persistCampaign(
             Fixture fixture, String campaignName, CampaignStatus status,
             LocalDate executionStartDate, LocalDate executionEndDate
     ) {
         Team team = entityManager.getReference(Team.class, fixture.teamId());
-        entityManager.persist(Campaign.builder()
+        Campaign campaign = Campaign.builder()
                 .team(team)
                 .mediaUnit(fixture.mediaUnit())
                 .createdBy(entityManager.getReference(com.shinhan.klljs.domain.user.entity.User.class, fixture.userId()))
@@ -299,11 +377,14 @@ class TeamCampaignQueryServiceTest {
                 .executionStartDate(executionStartDate)
                 .executionEndDate(executionEndDate)
                 .dailyTargetPlayCount(200)
+                .description("메모")
                 .creativeType(CampaignCreativeType.IMAGE)
                 .creativeStorageKey("campaign-creatives/test/" + campaignName)
                 .creativeOriginalFilename("poster.png")
                 .status(status)
-                .build());
+                .build();
+        entityManager.persist(campaign);
+        return campaign;
     }
 
     private record Fixture(Long teamId, String teamName, Long userId, MediaUnit mediaUnit) {

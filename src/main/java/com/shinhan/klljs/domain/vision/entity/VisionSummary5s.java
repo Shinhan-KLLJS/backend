@@ -18,6 +18,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
@@ -53,8 +55,12 @@ public class VisionSummary5s {
     @JoinColumn(name = "media_unit_id", nullable = false)
     private MediaUnit mediaUnit;
 
+    // V1 마이그레이션의 fk_vision_summary_campaign이 ON DELETE SET NULL이다.
+    // @OnDelete로 그 사실을 JPA 매핑에도 반영해야 로컬/테스트(H2 자동 생성 스키마)의 FK가
+    // 운영(Flyway)과 같은 동작을 한다 - 없으면 캠페인 삭제가 여기서 FK 위반으로 막힌다.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "campaign_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private Campaign campaign;
 
     @Column(name = "device_id", nullable = false, length = 100)
