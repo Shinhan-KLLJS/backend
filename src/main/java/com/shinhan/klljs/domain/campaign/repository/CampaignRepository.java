@@ -24,6 +24,13 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
     List<Campaign> findByTeamIdIn(List<Long> teamIds);
 
     /**
+     * 팀 캠페인 페이지(캠페인 목록) 조회용. mediaLocationAddress를 응답에 내려줘야 해서
+     * mediaUnit을 함께 fetch해 N+1을 피한다 - findByTeamIdIn과 달리 매체 조인이 필요하다.
+     */
+    @Query("select c from Campaign c join fetch c.mediaUnit where c.team.id = :teamId")
+    List<Campaign> findByTeamIdWithMediaUnit(@Param("teamId") Long teamId);
+
+    /**
      * SQS consumer가 Vision 메시지 하나를 어느 캠페인에 귀속시킬지 찾을 때 쓴다
      * (스펙 5-1절 "매체와 event_time 기준으로 현재 송출 중인 캠페인을 연결한다").
      * event_time의 KST 날짜가 캠페인 집행 기간(execution_start_date ~ execution_end_date)

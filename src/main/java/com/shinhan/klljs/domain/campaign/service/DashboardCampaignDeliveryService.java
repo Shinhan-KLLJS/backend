@@ -6,6 +6,7 @@ import com.shinhan.klljs.domain.campaign.dto.PeriodStatus;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.CampaignPeriodContext;
+import com.shinhan.klljs.domain.campaign.util.CampaignPlayCountEstimator;
 import com.shinhan.klljs.global.util.KstDateTimes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,8 +32,8 @@ import java.time.temporal.ChronoUnit;
 @RequiredArgsConstructor
 public class DashboardCampaignDeliveryService {
 
-    private static final LocalTime PLAY_START_TIME = LocalTime.of(6, 0, 0);
-    private static final int PLAY_INTERVAL_SEC = 15;
+    private static final LocalTime PLAY_START_TIME = CampaignPlayCountEstimator.PLAY_START_TIME;
+    private static final int PLAY_INTERVAL_SEC = CampaignPlayCountEstimator.PLAY_INTERVAL_SEC;
     private static final int REFRESH_INTERVAL_SEC = 15;
 
     private final DashboardCampaignQueryService dashboardCampaignQueryService;
