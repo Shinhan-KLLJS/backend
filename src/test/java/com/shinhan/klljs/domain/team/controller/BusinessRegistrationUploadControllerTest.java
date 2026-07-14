@@ -79,9 +79,9 @@ class BusinessRegistrationUploadControllerTest {
                 .andExpect(jsonPath("$.result.documentStorageKey").exists())
                 .andExpect(jsonPath("$.result.ocrResult.companyName").value("신한 KLLJS"))
                 .andExpect(jsonPath("$.result.ocrResult.businessOpeningDate").value("2024-06-24"))
-                // 업태·종목은 응답에 없다 (토큰 안에만 있다 - server-verification-spec.md §7)
-                .andExpect(jsonPath("$.result.ocrResult.businessType").doesNotExist())
-                .andExpect(jsonPath("$.result.ocrResult.businessItem").doesNotExist());
+                // 업태·종목도 화면에 보여줄 수 있게 응답에 실린다 (저장 시에는 토큰 쪽 값을 쓴다)
+                .andExpect(jsonPath("$.result.ocrResult.businessType").value("서비스업"))
+                .andExpect(jsonPath("$.result.ocrResult.businessItem").value("광고대행"));
     }
 
     /**

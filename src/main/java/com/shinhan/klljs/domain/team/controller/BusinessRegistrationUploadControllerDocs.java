@@ -15,8 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
  * {@link BusinessRegistrationUploadController}의 Swagger 문서 전용 인터페이스.
  */
 @Tag(
-        name = "사업자등록증 검증",
-        description = "사용자가 확정한 사업자등록증 정보를 국세청에 대조해 승인/반려/검토필요를 판정하는 API"
+        name = "사업자등록증",
+        description = "사업자등록증을 업로드해 OCR로 읽고, 사용자가 확인한 값으로 팀을 만드는 API"
 )
 public interface BusinessRegistrationUploadControllerDocs {
 
@@ -35,17 +35,15 @@ public interface BusinessRegistrationUploadControllerDocs {
                     받은 문자열을 그대로 되돌려 보내기만 하면 된다. 값을 조작하면 서명이 깨져 400이 난다.
                     유효 기간은 발급 후 **1시간**이다.
 
-                    ### ⚠️ 업태·종목은 응답에 없다
-                    OCR은 업태(`businessType`)와 종목(`businessItem`)도 읽지만 **응답에 담지 않는다.**
-                    이 둘은 광고업 판단의 유일한 근거인데 국세청이 확인해주지 않아서, 화면에서 수정할 수 있게
-                    하면 실제로는 음식점업인 사업자가 "광고대행"으로 고쳐 제출해 스스로를 승인시킬 수 있다.
-                    그래서 `documentStorageKey` 토큰 안에 서명해 넣어 나른다 — 값을 바꾸면 서명이 깨진다.
+                    ### 업태·종목은 응답과 토큰 양쪽에 실린다
+                    업태(`businessType`)·종목(`businessItem`)도 다른 필드처럼 `ocrResult`로 내려가
+                    화면에 보여줄 수 있다. 같은 값이 `documentStorageKey` 토큰 안에도 서명돼 있고,
+                    **팀 생성 시 DB에 저장되는 것은 토큰 쪽 값이다** — 전송 구간에서 변조된 값이 아니라
+                    OCR이 실제로 읽은 값임을 보증한다.
 
                     ### OCR 실패는 에러가 아니다
                     특정 필드를 못 읽거나 OCR이 통째로 실패해도 **업로드는 성공(200)** 이다.
                     실패한 필드는 `null`로 내려가고, 사용자가 직접 입력하면 된다.
-                    (다만 업태·종목을 못 읽으면 광고업 판단 근거가 없어 팀 생성이 `400`으로 막힌다 —
-                    이때는 문서를 다시 업로드해 OCR을 재시도해야 한다.)
 
                     ### 파일 검증
                     확장자와 `Content-Type`은 믿지 않는다(클라이언트가 마음대로 붙일 수 있다).
@@ -69,7 +67,9 @@ public interface BusinessRegistrationUploadControllerDocs {
                                           "companyName": "신한 KLLJS",
                                           "representativeName": "이정현",
                                           "businessNumber": "4959240582",
-                                          "businessOpeningDate": "2024-06-24"
+                                          "businessOpeningDate": "2024-06-24",
+                                          "businessType": "서비스업",
+                                          "businessItem": "광고대행"
                                         }
                                       }
                                     }
@@ -85,7 +85,9 @@ public interface BusinessRegistrationUploadControllerDocs {
                                           "companyName": null,
                                           "representativeName": null,
                                           "businessNumber": null,
-                                          "businessOpeningDate": null
+                                          "businessOpeningDate": null,
+                                          "businessType": null,
+                                          "businessItem": null
                                         }
                                       }
                                     }
@@ -95,8 +97,13 @@ public interface BusinessRegistrationUploadControllerDocs {
             @ApiResponse(responseCode = "400", description = """
                     - `BUSINESS_400_002`: JPG/PNG/PDF가 아님 (매직바이트 기준. 확장자만 바꾼 파일 포함)
                     - `BUSINESS_400_003`: 파일 용량 초과 (10MB)
-                    - `BUSINESS_400_004`: 파일이 첨부되지 않음"""),
+                    - `BUSINESS_400_004`: 파일이 첨부되지 않음
+                    - `BUSINESS_400_005`: 파일이 손상되어 열 수 없음 (헤더만 흉내 낸 파일 포함)
+                    - `BUSINESS_400_006`: 암호가 걸린 PDF
+                    - `BUSINESS_400_007`: PDF 페이지 수 초과 (5쪽)
+                    - `BUSINESS_400_008`: 이미지 해상도(픽셀 수) 초과 (30MP)"""),
             @ApiResponse(responseCode = "401", description = "`Authorization` 헤더의 액세스 토큰이 만료·위조됨"),
+            @ApiResponse(responseCode = "429", description = "`BUSINESS_429_001`: 24시간 내 업로드 횟수 초과"),
             @ApiResponse(responseCode = "500", description = """
                     - `BUSINESS_500_002`: 서버에 업로드 토큰 서명 키가 설정되지 않음
                     - `BUSINESS_500_003`: 스토리지 저장 실패 (인프라 문제. 재시도하면 된다)""")

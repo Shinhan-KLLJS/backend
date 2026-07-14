@@ -75,21 +75,22 @@ class BusinessRegistrationUploadServiceTest {
     }
 
     /**
-     * <b>업태·종목은 응답에 노출하지 않는다.</b> 화면에 보여주면 사용자가 "광고대행"으로 고쳐 제출해
-     * 스스로를 승인시킬 수 있다 (server-verification-spec.md §7). 서명 토큰 안으로만 나른다.
+     * <b>업태·종목은 응답과 토큰 양쪽에 실린다.</b> 응답 쪽은 화면 표시용이고(사용자가 OCR 결과를
+     * 확인한다), 토큰 쪽은 저장용이다 - 팀 생성 시 DB에 들어가는 값은 서명된 토큰에서 꺼내므로
+     * 전송 구간에서 변조된 값이 아니라 OCR 원본임이 보증된다.
      */
     @Test
-    void upload_hidesBusinessTypeFromTheResponseButSignsItIntoTheToken() {
+    void upload_showsBusinessTypeInTheResponseAndSignsItIntoTheToken() {
         given(ocrClient.extract(S3_KEY)).willReturn(new OcrResult(
                 "우리 식당", "홍길동", "4959240582", "2024-06-24", "음식점업", "한식"));
 
         BusinessRegistrationUploadResponse response = uploadService.upload(USER_ID, pngFile());
 
-        // 응답 어디에도 업태·종목이 없다 (OcrFields에 필드 자체가 없다).
+        // 화면에 그대로 보여줄 수 있도록 응답에 업태·종목까지 전부 실린다.
         assertThat(response.ocrResult()).isEqualTo(new BusinessRegistrationUploadResponse.OcrFields(
-                "우리 식당", "홍길동", "4959240582", "2024-06-24"));
+                "우리 식당", "홍길동", "4959240582", "2024-06-24", "음식점업", "한식"));
 
-        // 대신 토큰 안에 OCR 원본 그대로 서명돼 있다 - 사용자가 바꿀 수 없다.
+        // 토큰 안에도 OCR 원본 그대로 서명돼 있다 - 저장은 이쪽 값을 쓴다.
         BusinessRegistrationUploadToken token =
                 tokenSigner.verify(response.documentStorageKey(), USER_ID);
         assertThat(token.businessType()).isEqualTo("음식점업");
