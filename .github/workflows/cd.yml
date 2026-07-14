@@ -75,6 +75,9 @@ jobs:
           CAMPAIGN_CREATIVE_BUCKET=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-bucket --query Parameter.Value --output text --region ap-northeast-2)
           CAMPAIGN_CREATIVE_PUBLIC_BASE_URL=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-public-base-url --query Parameter.Value --output text --region ap-northeast-2)
           CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/business-registration-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_BUCKET=\$(aws ssm get-parameter --name /vision/prod/business-registration-bucket --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_OCR_FUNCTION=\$(aws ssm get-parameter --name /vision/prod/business-registration-ocr-function --query Parameter.Value --output text --region ap-northeast-2)
 
           MARKER_FILE=/tmp/klljs_current_image
           PREVIOUS_IMAGE=\$(cat "\$MARKER_FILE" 2>/dev/null || echo "")
@@ -95,6 +98,9 @@ jobs:
               -e CAMPAIGN_CREATIVE_BUCKET="\$CAMPAIGN_CREATIVE_BUCKET" \
               -e CAMPAIGN_CREATIVE_PUBLIC_BASE_URL="\$CAMPAIGN_CREATIVE_PUBLIC_BASE_URL" \
               -e CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET="\$CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET" \
+              -e BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET="\$BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET" \
+              -e BUSINESS_REGISTRATION_BUCKET="\$BUSINESS_REGISTRATION_BUCKET" \
+              -e BUSINESS_REGISTRATION_OCR_FUNCTION="\$BUSINESS_REGISTRATION_OCR_FUNCTION" \
               "\$image"
           }
 
