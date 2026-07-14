@@ -66,6 +66,16 @@ public enum BusinessRegistrationErrorCode implements BaseErrorCode {
             "사업자등록증 PDF의 페이지가 너무 많습니다. 사업자등록증 페이지만 올려 주세요."),
 
     /**
+     * 인코딩된 파일 크기(BUSINESS_400_003)와 별개로 <b>디코딩된 픽셀 수</b>가 상한을 넘는 이미지.
+     *
+     * 고압축 PNG는 몇 MB로도 수억 픽셀을 선언할 수 있고(decompression bomb), 그대로 디코딩하면
+     * 픽셀당 4바이트짜리 래스터가 힙에 잡혀 단일 EC2 인스턴스가 OOM으로 내려간다.
+     * 헤더의 가로×세로만 읽어 디코딩 전에 거른다.
+     */
+    DOCUMENT_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "BUSINESS_400_008",
+            "이미지 해상도가 너무 높습니다. 해상도를 낮춰 다시 올려 주세요."),
+
+    /**
      * 업로드 한 번마다 OCR Lambda가 호출되고 OCR은 호출당 과금이다.
      * 인증만으로 무제한 호출이 가능하면 로그인한 사용자 하나가 비용을 계속 태울 수 있다.
      */

@@ -19,6 +19,7 @@ public class BusinessRegistrationUploadProperties {
     private final String region;
     private final String keyPrefix;
     private final long maxFileBytes;
+    private final long maxImagePixels;
     private final int maxPdfPages;
     private final String ocrFunctionName;
     private final int ocrTimeoutMs;
@@ -30,6 +31,7 @@ public class BusinessRegistrationUploadProperties {
             @Value("${app.upload.business-registration.region}") String region,
             @Value("${app.upload.business-registration.key-prefix}") String keyPrefix,
             @Value("${app.upload.business-registration.max-file-bytes}") long maxFileBytes,
+            @Value("${app.upload.business-registration.max-image-pixels}") long maxImagePixels,
             @Value("${app.upload.business-registration.max-pdf-pages}") int maxPdfPages,
             @Value("${app.upload.business-registration.ocr-function-name}") String ocrFunctionName,
             @Value("${app.upload.business-registration.ocr-timeout-ms}") int ocrTimeoutMs
@@ -40,6 +42,7 @@ public class BusinessRegistrationUploadProperties {
         this.region = region;
         this.keyPrefix = keyPrefix;
         this.maxFileBytes = maxFileBytes;
+        this.maxImagePixels = maxImagePixels;
         this.maxPdfPages = maxPdfPages;
         this.ocrFunctionName = ocrFunctionName;
         this.ocrTimeoutMs = ocrTimeoutMs;
@@ -81,6 +84,14 @@ public class BusinessRegistrationUploadProperties {
 
     public long maxFileBytes() {
         return maxFileBytes;
+    }
+
+    /**
+     * 디코딩 허용 픽셀 수 상한 (가로×세로). 파일 크기(maxFileBytes)와 별개다 - 고압축 PNG는
+     * 몇 MB로도 수억 픽셀을 선언할 수 있어, 이 상한 없이는 decompression bomb 한 장에 OOM이 난다.
+     */
+    public long maxImagePixels() {
+        return maxImagePixels;
     }
 
     /** 사업자등록증은 한 장짜리 문서다. 상한을 넘는 PDF는 OCR 비용을 태우려는 시도로 본다. */

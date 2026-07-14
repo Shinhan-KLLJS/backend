@@ -9,9 +9,12 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * 파일을 실제로 열어봐서 내용이 온전한지 확인한다 (team-creation-api-spec.md 4절).
@@ -45,15 +48,41 @@ public class DocumentContentValidator {
     }
 
     /**
-     * ImageIO로 실제 디코딩을 시도한다. 픽셀까지 만들어져야 통과다.
+     * <b>헤더의 가로×세로를 먼저 확인한 뒤</b> 실제 디코딩을 시도한다. 픽셀까지 만들어져야 통과다.
+     *
+     * 순서가 중요하다: 파일 크기 제한(10MB)은 인코딩된 바이트만 보므로, 고압축 PNG는 몇 MB로도
+     * 수억 픽셀을 선언할 수 있다(decompression bomb). 그대로 디코딩하면 픽셀당 4바이트짜리
+     * 래스터가 힙에 잡혀 인스턴스가 OOM으로 내려간다. {@link ImageReader#getWidth}는 헤더만
+     * 읽고 픽셀을 만들지 않으므로, 여기서 상한을 넘는 이미지를 메모리 할당 없이 거른다.
      *
      * ImageIO는 읽을 수 없으면 예외를 던지기도 하고 조용히 null을 돌려주기도 한다 - 둘 다 실패로 본다.
      */
     private void validateImage(byte[] content, DocumentType type) {
-        try {
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(content));
-            if (image == null) {
-                throw unreadable(type, "디코딩 결과가 없습니다", null);
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(content))) {
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) {
+                throw unreadable(type, "이미지 리더를 찾지 못했습니다", null);
+            }
+
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+
+                // int 곱셈은 넘칠 수 있으므로(46341×46341부터) long으로 받아 곱한다.
+                long width = reader.getWidth(0);
+                long height = reader.getHeight(0);
+                if (width * height > properties.maxImagePixels()) {
+                    log.warn("[업로드 거부] 이미지 픽셀 수 초과: {}x{} (상한 {}픽셀)",
+                            width, height, properties.maxImagePixels());
+                    throw new GeneralException(BusinessRegistrationErrorCode.DOCUMENT_IMAGE_TOO_LARGE);
+                }
+
+                BufferedImage image = reader.read(0);
+                if (image == null) {
+                    throw unreadable(type, "디코딩 결과가 없습니다", null);
+                }
+            } finally {
+                reader.dispose();
             }
         } catch (IOException | RuntimeException e) {
             if (e instanceof GeneralException general) {

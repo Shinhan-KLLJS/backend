@@ -163,7 +163,7 @@ class BusinessRegistrationUploadTokenSignerTest {
     private static BusinessRegistrationUploadTokenSigner signerWith(String secret, Clock clock) {
         BusinessRegistrationUploadProperties properties = new BusinessRegistrationUploadProperties(
                 secret, TTL_SECONDS, "test-bucket", "ap-northeast-2",
-                "team-registrations/", 10_485_760L, 5, "test-ocr-function", 30_000);
+                "team-registrations/", 10_485_760L, 30_000_000L, 5, "test-ocr-function", 30_000);
         return new BusinessRegistrationUploadTokenSigner(properties, clock);
     }
 }

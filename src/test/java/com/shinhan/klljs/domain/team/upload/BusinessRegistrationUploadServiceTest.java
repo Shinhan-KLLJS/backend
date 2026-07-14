@@ -193,6 +193,28 @@ class BusinessRegistrationUploadServiceTest {
         verify(ocrClient, never()).extract(anyString());
     }
 
+    /**
+     * <b>픽셀 폭탄(decompression bomb)은 디코딩 전에 걸러야 한다.</b>
+     *
+     * 파일 크기 제한(10MB)은 인코딩된 바이트만 본다. 고압축 PNG는 몇 십 바이트로도 25억 픽셀을
+     * 선언할 수 있고, 그대로 디코딩하면 약 10GB 힙이 필요해 단일 EC2 인스턴스가 OOM으로 내려간다.
+     * 헤더의 가로×세로만 읽어 거부해야 한다 - 이 테스트가 통과한다는 것 자체가
+     * 디코딩 없이 걸러냈다는 뜻이다(디코딩했다면 테스트 JVM이 죽는다).
+     */
+    @Test
+    void upload_rejectsImageDeclaringHugeDimensionsWithoutDecodingIt() {
+        MultipartFile bomb = new MockMultipartFile(
+                "file", "bomb.png", "image/png", DocumentFixtures.hugeDimensionPng());
+
+        assertThatThrownBy(() -> uploadService.upload(USER_ID, bomb))
+                .isInstanceOf(GeneralException.class)
+                .satisfies(ex -> assertThat(((GeneralException) ex).getErrorCode())
+                        .isEqualTo(BusinessRegistrationErrorCode.DOCUMENT_IMAGE_TOO_LARGE));
+
+        verify(documentStorage, never()).store(any(), any());
+        verify(ocrClient, never()).extract(anyString());
+    }
+
     /** "%PDF-" 헤더만 붙인 파일도 마찬가지다. 실제로 파싱해봐야 걸린다. */
     @Test
     void upload_rejectsFilePretendingToBePdf() {
