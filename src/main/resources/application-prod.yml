@@ -61,6 +61,11 @@ app:
       secret: ${JWT_SECRET}
       access-token-ttl-seconds: 900
       refresh-token-ttl-seconds: 1209600
+    refresh-cookie:
+      # 기본값 Lax - 프론트가 API와 같은 site일 때(운영)는 이 값을 바꿀 필요가 없다.
+      # 로컬 프론트(localhost)로 이 서버를 cross-site로 테스트할 때만(issue #31) 배포 시
+      # REFRESH_COOKIE_SAME_SITE=None 환경변수로 임시 오버라이드한다 - 실제 배포 전 Lax로 되돌려야 한다.
+      same-site: ${REFRESH_COOKIE_SAME_SITE:Lax}
 
   upload:
     business-registration:

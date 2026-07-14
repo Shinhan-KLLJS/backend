@@ -51,7 +51,7 @@ class RefreshTokenServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RefreshTokenService(refreshTokenRepository, userRepository, familyRevoker, FIXED_CLOCK, TTL_SECONDS);
+        service = new RefreshTokenService(refreshTokenRepository, userRepository, familyRevoker, FIXED_CLOCK, TTL_SECONDS, "Lax");
         user = User.builder().displayName("철수").status(UserStatus.ACTIVE).build();
         entityManager.persist(user);
     }

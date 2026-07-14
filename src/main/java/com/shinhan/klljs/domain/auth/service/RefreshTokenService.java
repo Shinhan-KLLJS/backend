@@ -35,6 +35,7 @@ public class RefreshTokenService {
     private final RefreshTokenFamilyRevoker familyRevoker;
     private final Clock clock;
     private final long refreshTokenTtlSeconds;
+    private final String cookieSameSite;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public RefreshTokenService(
@@ -42,13 +43,18 @@ public class RefreshTokenService {
             UserRepository userRepository,
             RefreshTokenFamilyRevoker familyRevoker,
             Clock clock,
-            @Value("${app.auth.jwt.refresh-token-ttl-seconds:1209600}") long refreshTokenTtlSeconds
+            @Value("${app.auth.jwt.refresh-token-ttl-seconds:1209600}") long refreshTokenTtlSeconds,
+            // 기본값 Lax를 유지한다 - 프론트와 API가 같은 site일 때 CSRF 방어에 가장 안전하다.
+            // 로컬 프론트(localhost)로 배포된 서버를 cross-site로 테스트할 때만(issue #31) None으로
+            // 임시 오버라이드한다 - None은 Secure 쿠키에서만 허용되는데 이 서버는 항상 HTTPS라 문제없다.
+            @Value("${app.auth.refresh-cookie.same-site:Lax}") String cookieSameSite
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
         this.familyRevoker = familyRevoker;
         this.clock = clock;
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
+        this.cookieSameSite = cookieSameSite;
     }
 
     @Transactional
@@ -112,7 +118,7 @@ public class RefreshTokenService {
         return ResponseCookie.from(COOKIE_NAME, value)
                 .httpOnly(true)
                 .secure(true)
-                .sameSite("Lax")
+                .sameSite(cookieSameSite)
                 .path(COOKIE_PATH);
     }
 
