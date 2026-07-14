@@ -25,13 +25,15 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -82,6 +84,12 @@ class TeamCampaignDeleteConcurrencyMySqlTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     void deleteCampaign_underConcurrentRequests_onlyOneSucceedsAndLoserGetsNotFound() throws Exception {
         Team team = teamRepository.save(Team.builder().teamName("동시성 삭제 팀").status(TeamStatus.ACTIVE).build());
@@ -129,40 +137,96 @@ class TeamCampaignDeleteConcurrencyMySqlTest {
                 .build());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        Callable<Void> attemptDelete = () -> {
-            startLatch.await();
-            teamCampaignCommandService.deleteCampaign(owner.getId(), team.getId(), campaign.getId());
-            return null;
-        };
+        CountDownLatch firstLockAcquired = new CountDownLatch(1);
+        CountDownLatch releaseFirstTransaction = new CountDownLatch(1);
+        CountDownLatch secondAttemptStarted = new CountDownLatch(1);
 
-        Future<Void> first = executor.submit(attemptDelete);
-        Future<Void> second = executor.submit(attemptDelete);
-        startLatch.countDown();
+        try {
+            Future<Void> first = executor.submit(() -> {
+                new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                    campaignRepository.findByIdForUpdate(campaign.getId()).orElseThrow();
+                    firstLockAcquired.countDown();
+                    await(releaseFirstTransaction);
+                    teamCampaignCommandService.deleteCampaign(owner.getId(), team.getId(), campaign.getId());
+                });
+                return null;
+            });
 
-        int successCount = 0;
-        int notFoundCount = 0;
-        int unexpectedFailureCount = 0;
-        for (Future<Void> future : List.of(first, second)) {
-            try {
-                future.get(10, TimeUnit.SECONDS);
-                successCount++;
-            } catch (ExecutionException e) {
-                if (e.getCause() instanceof GeneralException generalException
-                        && generalException.getErrorCode() == CampaignErrorCode.CAMPAIGN_NOT_FOUND) {
-                    notFoundCount++;
-                } else {
-                    unexpectedFailureCount++;
+            assertThat(firstLockAcquired.await(5, TimeUnit.SECONDS))
+                    .as("첫 번째 요청이 캠페인 행의 비관적 잠금을 획득해야 한다")
+                    .isTrue();
+
+            Future<Void> second = executor.submit(() -> {
+                secondAttemptStarted.countDown();
+                teamCampaignCommandService.deleteCampaign(owner.getId(), team.getId(), campaign.getId());
+                return null;
+            });
+            assertThat(secondAttemptStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            awaitCampaignLockWait();
+            assertThat(second.isDone())
+                    .as("두 번째 요청은 첫 번째 트랜잭션이 보유한 행 잠금을 기다려야 한다")
+                    .isFalse();
+
+            releaseFirstTransaction.countDown();
+
+            int successCount = 0;
+            int notFoundCount = 0;
+            int unexpectedFailureCount = 0;
+            for (Future<Void> future : List.of(first, second)) {
+                try {
+                    future.get(10, TimeUnit.SECONDS);
+                    successCount++;
+                } catch (ExecutionException e) {
+                    if (e.getCause() instanceof GeneralException generalException
+                            && generalException.getErrorCode() == CampaignErrorCode.CAMPAIGN_NOT_FOUND) {
+                        notFoundCount++;
+                    } else {
+                        unexpectedFailureCount++;
+                    }
                 }
             }
-        }
-        executor.shutdown();
 
-        assertThat(successCount).isEqualTo(1);
-        assertThat(notFoundCount).isEqualTo(1);
-        assertThat(unexpectedFailureCount)
-                .as("잠금 없이 두 트랜잭션이 같은 행을 동시에 읽으면 진 쪽이 stale-state 예외(500)로 실패한다")
-                .isZero();
-        assertThat(campaignRepository.findById(campaign.getId())).isEmpty();
+            assertThat(successCount).isEqualTo(1);
+            assertThat(notFoundCount).isEqualTo(1);
+            assertThat(unexpectedFailureCount)
+                    .as("잠금 없이 두 트랜잭션이 같은 행을 동시에 읽으면 진 쪽이 stale-state 예외(500)로 실패한다")
+                    .isZero();
+            assertThat(campaignRepository.findById(campaign.getId())).isEmpty();
+        } finally {
+            releaseFirstTransaction.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    private void awaitCampaignLockWait() throws InterruptedException {
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        do {
+            Integer waitingTransactionCount = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM performance_schema.data_lock_waits w
+                    JOIN performance_schema.data_locks requested
+                      ON requested.ENGINE = w.ENGINE
+                     AND requested.ENGINE_LOCK_ID = w.REQUESTING_ENGINE_LOCK_ID
+                    WHERE requested.OBJECT_SCHEMA = DATABASE()
+                      AND requested.OBJECT_NAME = 'campaigns'
+                    """, Integer.class);
+            if (waitingTransactionCount != null && waitingTransactionCount > 0) {
+                return;
+            }
+            TimeUnit.MILLISECONDS.sleep(25);
+        } while (System.nanoTime() < deadlineNanos);
+
+        throw new AssertionError("두 번째 삭제 요청이 campaigns 행 잠금 대기 상태에 진입하지 않았다");
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("잠금 해제 신호를 제한 시간 안에 받지 못했다");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("잠금 경합 테스트가 중단됐다", e);
+        }
     }
 }

@@ -152,7 +152,17 @@ public interface TeamCampaignControllerDocs {
                     """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "삭제 성공 (본문 없음)"),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "삭제 성공. `ApiResponse<Void>` 응답에서 null인 `result` 필드는 생략됨",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "isSuccess": true,
+                              "code": "COMMON_200_001",
+                              "message": "성공적으로 요청을 처리했습니다."
+                            }
+                            """))
+            ),
             @ApiResponse(responseCode = "403", description = "요청자가 이 팀 소속이 아님 (`TEAM_403_001`) 또는 `MEMBER`임 (`TEAM_403_003`)"),
             @ApiResponse(responseCode = "404", description = "팀이 없음 (`TEAM_404_001`) 또는 캠페인이 없거나 이 팀 소유가 아님 (`CAMPAIGN_404_001`)")
     })

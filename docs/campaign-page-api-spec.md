@@ -134,7 +134,7 @@ Authorization: Bearer {accessToken}
 | `teamName` | string | 화면 상단 팀명 표시용 |
 | `campaigns[].campaignId` | number | |
 | `campaigns[].campaignName` | string | |
-| `campaigns[].status` | string | `BEFORE_EXECUTION`\|`IN_EXECUTION`\|`AFTER_EXECUTION` (등록 직후의 짧은 `REGISTERED`도 이 필드 그대로 내려간다 - 프론트는 `REGISTERED`를 "집행 전"과 같은 배지로 표시하면 된다) |
+| `campaigns[].status` | string | DB 상태를 그대로 반환한다: `REGISTRATION_FAILED`\|`REGISTERED`\|`BEFORE_EXECUTION`\|`IN_EXECUTION`\|`AFTER_EXECUTION`. 프론트는 등록 직후의 짧은 `REGISTERED`를 "집행 전"과 같은 배지로 표시하면 된다 (`REGISTRATION_FAILED`는 현재 등록 흐름에서는 생성되지 않음) |
 | `campaigns[].executionStartDate` | date | |
 | `campaigns[].executionEndDate` | date | |
 | `campaigns[].mediaLocationAddress` | string | 선택한 매체의 `locationAddress` |
@@ -276,7 +276,15 @@ Authorization: Bearer {accessToken}
 
 ### Response
 
-성공 시 본문 없이 `200`만 반환한다 (`ApiResponse<Void>`).
+성공 시 `200`과 함께 `ApiResponse<Void>` JSON 본문을 반환한다. `result`는 null이므로 응답에서 생략된다.
+
+```json
+{
+  "isSuccess": true,
+  "code": "COMMON_200_001",
+  "message": "성공적으로 요청을 처리했습니다."
+}
+```
 
 ### 에러 케이스
 
