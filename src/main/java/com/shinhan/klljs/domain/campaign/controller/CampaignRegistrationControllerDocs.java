@@ -19,6 +19,7 @@ public interface CampaignRegistrationControllerDocs {
     )
     ResponseEntity<ApiResponse<CampaignRegistrationResponse>> register(
             @Parameter(hidden = true) Jwt jwt,
+            @Parameter(description = "팀 ID", example = "1")
             Long teamId,
             CampaignRegistrationRequest request
     );
