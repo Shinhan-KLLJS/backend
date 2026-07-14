@@ -75,6 +75,12 @@ jobs:
           CAMPAIGN_CREATIVE_PUBLIC_BASE_URL=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-public-base-url --query Parameter.Value --output text --region ap-northeast-2)
           CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/campaign-creative-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
 
+          # 사업자등록증 업로드 (DV-112). application-prod.yml이 이 셋을 기본값 없이 요구하므로
+          # 하나라도 빠지면 컨테이너가 기동 자체에 실패한다.
+          BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET=\$(aws ssm get-parameter --name /vision/prod/business-registration-upload-token-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_BUCKET=\$(aws ssm get-parameter --name /vision/prod/business-registration-bucket --query Parameter.Value --output text --region ap-northeast-2)
+          BUSINESS_REGISTRATION_OCR_FUNCTION=\$(aws ssm get-parameter --name /vision/prod/business-registration-ocr-function --query Parameter.Value --output text --region ap-northeast-2)
+
           MARKER_FILE=/tmp/klljs_current_image
           PREVIOUS_IMAGE=\$(cat "\$MARKER_FILE" 2>/dev/null || echo "")
 
@@ -93,6 +99,9 @@ jobs:
               -e CAMPAIGN_CREATIVE_BUCKET="\$CAMPAIGN_CREATIVE_BUCKET" \
               -e CAMPAIGN_CREATIVE_PUBLIC_BASE_URL="\$CAMPAIGN_CREATIVE_PUBLIC_BASE_URL" \
               -e CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET="\$CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET" \
+              -e BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET="\$BUSINESS_REGISTRATION_UPLOAD_TOKEN_SECRET" \
+              -e BUSINESS_REGISTRATION_BUCKET="\$BUSINESS_REGISTRATION_BUCKET" \
+              -e BUSINESS_REGISTRATION_OCR_FUNCTION="\$BUSINESS_REGISTRATION_OCR_FUNCTION" \
               "\$image"
           }
 

@@ -16,7 +16,13 @@ public enum GeneralErrorCode implements BaseErrorCode {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "COMMON_400_002", "요청 값 검증에 실패했습니다."),
 
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "COMMON_405_001", "지원하지 않는 HTTP 메서드입니다."),
-    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_415_001", "지원하지 않는 Content-Type입니다.");
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "COMMON_415_001", "지원하지 않는 Content-Type입니다."),
+
+    /**
+     * 서블릿 컨테이너의 multipart 상한(spring.servlet.multipart.max-file-size)을 넘겼다.
+     * 이 예외는 컨트롤러에 들어오기 전에 터지므로, 도메인 서비스의 용량 검사로는 잡을 수 없다.
+     */
+    PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "COMMON_413_001", "업로드 가능한 용량을 초과했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

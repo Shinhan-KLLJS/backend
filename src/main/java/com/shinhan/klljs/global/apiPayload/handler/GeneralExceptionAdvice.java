@@ -16,6 +16,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.List;
 
@@ -114,6 +117,47 @@ public class GeneralExceptionAdvice {
 
         String detail = "지원하지 않는 Content-Type 입니다: " + ex.getContentType();
         return ResponseEntity.status(ec.getHttpStatus()).body(ApiResponse.onFailure(ec, List.of(detail)));
+    }
+
+    /**
+     * 파일 용량이 서블릿 컨테이너의 multipart 상한을 넘겼다 (413).
+     *
+     * <b>이 예외는 컨트롤러에 들어오기 전에 터진다.</b> 서비스 계층의 용량 검사는 실행되지도 않으므로,
+     * 여기서 잡지 않으면 아래 Exception 핸들러로 떨어져 사용자에게 500이 나간다.
+     * MaxUploadSizeExceededException은 MultipartException의 하위 타입이라 함께 처리된다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<?>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        BaseErrorCode ec = GeneralErrorCode.PAYLOAD_TOO_LARGE;
+
+        log.warn("[MaxUploadSizeExceeded] {}", ex.getMessage());
+        return ResponseEntity.status(ec.getHttpStatus())
+                .body(ApiResponse.onFailure(ec, List.of("업로드 가능한 용량을 초과했습니다.")));
+    }
+
+    /**
+     * 필수 파일 파트가 요청에 없다 (400).
+     *
+     * MissingServletRequestParameterException(위)과는 <b>다른 클래스</b>다 - 이름이 비슷해서
+     * 처리되고 있는 것처럼 보이지만, 이게 없으면 파일을 첨부하지 않은 요청이 500으로 나간다.
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<?>> handleMissingPart(MissingServletRequestPartException ex) {
+        BaseErrorCode ec = GeneralErrorCode.VALIDATION_ERROR;
+
+        String detail = ex.getRequestPartName() + ": 필수 파일이 누락되었습니다.";
+        log.debug("[MissingPart] {}", detail);
+        return ResponseEntity.status(ec.getHttpStatus()).body(ApiResponse.onFailure(ec, List.of(detail)));
+    }
+
+    /** 깨진 multipart 요청 (400). 위 두 케이스를 제외한 나머지 multipart 파싱 실패. */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<?>> handleMultipart(MultipartException ex) {
+        BaseErrorCode ec = GeneralErrorCode.BAD_REQUEST;
+
+        log.warn("[MultipartException] {}", ex.getMessage());
+        return ResponseEntity.status(ec.getHttpStatus())
+                .body(ApiResponse.onFailure(ec, List.of("파일 업로드 요청을 처리할 수 없습니다.")));
     }
 
     // 나머지 전부 (500)

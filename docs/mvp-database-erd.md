@@ -91,10 +91,10 @@ erDiagram
         varchar company_name
         varchar representative_name
         varchar business_type
+        varchar business_item
         varchar business_address
         date business_opening_date
         varchar document_storage_key
-        varchar verification_status
     }
 
     TEAM_INVITE_LINKS {
@@ -197,7 +197,30 @@ UNIQUE(provider, provider_user_id)
 UNIQUE(user_id, provider)
 ```
 
-카카오 로그인만 사용한다면 Access Token과 Refresh Token은 DB에 장기 보관하지 않는다. 추가 API 호출 때문에 보관해야 한다면 애플리케이션 암호화 또는 별도 비밀 저장소를 사용한다.
+**카카오가 준** Access/Refresh Token은 DB에 장기 보관하지 않는다. 추가 API 호출 때문에 보관해야 한다면 애플리케이션 암호화 또는 별도 비밀 저장소를 사용한다.
+
+**우리 서비스가 발급하는** Refresh Token은 다르다 — 회전과 탈취 탐지를 위해 아래 테이블에 보관한다.
+
+### auth_refresh_tokens (V3)
+
+| 컬럼 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | `BIGINT UNSIGNED` | PK | |
+| `user_id` | `BIGINT UNSIGNED` | O | `users.id` (FK, ON DELETE RESTRICT) |
+| `token_hash` | `BINARY(32)` | O | **원본이 아니라 SHA-256 해시만 저장한다.** DB가 유출돼도 토큰 자체는 쓸 수 없다 |
+| `token_family_id` | `BINARY(16)` | O | 회전 계보. 재사용(탈취)이 탐지되면 이 family 전체를 한 번에 폐기한다 |
+| `expires_at` | `DATETIME(3)` | O | |
+| `revoked_at` | `DATETIME(3)` | X | 폐기 시각. NULL이면 유효 |
+| `replaced_by_token_id` | `BIGINT UNSIGNED` | X | 회전으로 이 토큰을 대체한 토큰 |
+| `created_at` | `DATETIME(3)` | O | |
+
+```text
+UNIQUE(token_hash)
+INDEX(user_id)
+INDEX(token_family_id)
+```
+
+원본 토큰은 HttpOnly 쿠키로만 전달되고 서버는 해시만 들고 있다. 이미 폐기된 토큰이 다시 제출되면 탈취로 간주하고 같은 `token_family_id`를 가진 토큰을 전부 폐기한다.
 
 ---
 
@@ -288,14 +311,18 @@ CREATE UNIQUE INDEX ux_team_members_one_active_owner ON team_members(active_owne
 | `business_number` | `VARCHAR(20)` | X | 하이픈을 제거한 사업자번호 권장 |
 | `company_name` | `VARCHAR(200)` | X | 사업자명 |
 | `representative_name` | `VARCHAR(100)` | X | 대표자명 |
-| `business_type` | `VARCHAR(100)` | X | 업태 |
+| `business_type` | `VARCHAR(100)` | X | 업태 (OCR 원문, 100자 초과 시 잘라서 저장) |
+| `business_item` | `VARCHAR(100)` | X | 종목 (OCR 원문, `V8`에서 추가) |
 | `business_address` | `VARCHAR(500)` | X | 사업장 소재지 |
-| `business_opening_date` | `DATE` | X | 개업일 |
+| `business_opening_date` | `DATE` | X | 개업일 (파싱 실패 시 `NULL` 저장) |
 | `document_storage_key` | `VARCHAR(1024)` | O | 비공개 스토리지 객체 키 |
-| `verification_status` | `VARCHAR(20)` | O | `PENDING`, `APPROVED`, `REJECTED` |
-| `rejection_reason` | `VARCHAR(1000)` | X | 반려 사유 |
-| `verified_at` | `DATETIME(3)` | X | 검증 완료 시각 |
 | `created_at`, `updated_at` | `DATETIME(3)` | O | 생성·수정 시각 |
+
+검증 상태 컬럼(`verification_status`·`rejection_reason`·`verified_at`)은 `V9`에서 제거했다 —
+자동 검증·판정이 MVP 범위에서 빠지면서 "상태"라는 개념 자체가 없어졌고, **행의 존재 자체가
+"제출·확인 완료"를 의미한다.** `business_item`은 `V8`에서 추가됐다 (dev의 `V6`
+media_unit_region_columns·`V7` campaign_registration_schema와의 번호 충돌을 피해 `V6`에서
+리네이밍).
 
 사업자등록증은 민감 문서이므로 공개 파일 URL을 저장하지 않는다. 화면에서 파일을 조회할 때 권한을 확인한 뒤 짧은 만료 시간을 가진 서명 URL을 생성한다.
 
@@ -504,13 +531,16 @@ lts_female_60plus
 | `dwell_3_to_under_4s` | `INT UNSIGNED` | 3초 이상 4초 미만 |
 | `dwell_4s_and_over` | `INT UNSIGNED` | 4초 이상 |
 
-권장 인덱스:
+실제 인덱스 (V4 반영):
 
 ```text
-INDEX(media_unit_id, event_time)
+UNIQUE(media_unit_id, event_time)   -- 중복 수신 방지 키를 겸한다 (V4에서 별도 INDEX를 대체)
 INDEX(campaign_id, event_time)
 INDEX(event_time)
 ```
+
+`media_unit_id + event_time`은 원래 일반 인덱스였으나, V4에서 중복 수신 방지용 UNIQUE 키로 승격되면서
+기존 인덱스는 제거됐다. UNIQUE 키가 같은 컬럼을 인덱싱하므로 조회 성능은 동일하다.
 
 ### Vision 데이터 매핑 과정
 
@@ -657,8 +687,9 @@ SQS는 최소 한 번 배달(at-least-once)이라 같은 메시지가 두 번 �
 | `media_units` | Vision 장비가 내장된 옥외광고 매체 |
 | `campaigns` | 광고 캠페인과 선택 매체 |
 | `vision_summary_5s` | 5초 단위 Vision 원본 데이터 |
+| `auth_refresh_tokens` | 서비스 Refresh Token (해시만 저장, 회전 계보 추적) |
 
-이 구조는 MVP에서 필요한 기능을 9개 핵심 테이블로 구성한다. 향후 캠페인 하나를 여러 매체에 노출할 때만 `campaign_media_assignments`를 추가하고, 실제 재생 로그가 제공될 때 `ad_play_events`를 추가한다.
+이 구조는 MVP에서 필요한 기능을 10개 핵심 테이블로 구성한다. 향후 캠페인 하나를 여러 매체에 노출할 때만 `campaign_media_assignments`를 추가하고, 실제 재생 로그가 제공될 때 `ad_play_events`를 추가한다.
 
 ---
 
@@ -678,7 +709,7 @@ Entity 구현 전에 확정해야 하는 세부 정책이다.
 
 ### 13.3 사업자등록증 재제출 정책
 
-`team_business_registrations.team_id`는 UNIQUE라서 재제출 시 기존 행을 UPDATE하며, 반려됐던 이전 제출 내용은 남지 않는다. **MVP에서는 이력 미보관을 의도된 설계로 확정한다.** 향후 심사 감사 추적이 필요해지면 별도 `team_business_registration_histories` 테이블을 추가한다.
+**MVP에서는 재제출이 없다** — 자동 검증·판정이 빠지면서 반려라는 개념이 없고, 반려가 없으니 재제출도 없다. 팀당 사업자등록은 1건(`team_id` UNIQUE)이며, 변경이 필요하면 운영자를 거친다. 향후 재제출·심사 감사 추적이 필요해지면 별도 설계와 함께 `team_business_registration_histories` 테이블을 추가한다.
 
 ### 13.4 Vision 장비 교체 절차
 

@@ -133,3 +133,31 @@ variable "campaign_creative_upload_token_secret" {
   type        = string
   sensitive   = true
 }
+
+# ──────────────── 사업자등록증 업로드 (DV-112) ────────────────
+
+variable "business_registration_upload_token_secret" {
+  description = <<-EOT
+    사업자등록증 업로드 토큰 HMAC 서명 키 (openssl rand -base64 32, 32바이트 이상).
+    JWT 서명 키(jwt_secret)와 반드시 다른 값을 쓴다 - 용도가 다른 키를 공유하면 한쪽이 유출됐을 때
+    다른 쪽까지 무너진다. 이 키가 유출되면 남이 업로드한 사업자등록증 파일을 자기 것처럼 참조해
+    팀을 만들 수 있다.
+  EOT
+  type        = string
+  sensitive   = true
+}
+
+variable "business_registration_ocr_function" {
+  description = "OCR Lambda 함수 이름 (백엔드가 SDK로 직접 invoke)"
+  type        = string
+}
+
+variable "business_registration_ocr_function_arn" {
+  description = <<-EOT
+    OCR Lambda 함수 ARN. EC2에 lambda:InvokeFunction 권한을 이 함수 하나로 한정해 붙인다.
+    Lambda는 Terraform으로 관리하지 않고 별도 레포(biz-eligibility)에서 배포하므로 ARN만 받는다.
+    빈 문자열이면 호출 정책을 만들지 않는다 - Lambda 배포 전에도 apply가 되도록.
+  EOT
+  type        = string
+  default     = ""
+}

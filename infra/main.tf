@@ -108,6 +108,17 @@ resource "aws_route53_record" "frontend_www" {
   records = [var.vercel_www_cname_target]
 }
 
+# OCR Lambda 설정 일관성 검사.
+# 함수 이름(앱이 invoke할 대상)과 ARN(EC2에 invoke 권한을 붙일 대상)은 별개 변수라,
+# 이름만 채우고 ARN을 비워두면 권한 없는 invoke가 매번 AccessDenied로 조용히 실패해
+# OCR 필드가 전부 null로 내려간다 (에러는 서버 로그에만 남는다). plan/apply 때 바로 알아채도록 검사한다.
+check "business_registration_ocr_config_consistency" {
+  assert {
+    condition     = (var.business_registration_ocr_function == "") == (var.business_registration_ocr_function_arn == "")
+    error_message = "business_registration_ocr_function(이름)과 business_registration_ocr_function_arn(ARN)은 함께 채우거나 함께 비워야 합니다. 이름만 있으면 invoke 권한이 없어 OCR이 조용히 실패하고, ARN만 있으면 앱이 호출할 함수를 모릅니다."
+  }
+}
+
 # ------------------------------------------------------------
 # 모듈 4: EC2 (Spring Boot)
 # Public subnet에 위치(보안그룹으로 ALB 외 인바운드 차단), ALB Target Group에 등록
@@ -124,6 +135,8 @@ module "ec2" {
   ami_id                = var.ec2_ami_id
   key_name              = var.key_name
   s3_bucket_arn         = module.s3.bucket_arn
+
+  business_registration_ocr_function_arn = var.business_registration_ocr_function_arn
 }
 
 # ------------------------------------------------------------
@@ -164,4 +177,10 @@ module "ssm_params" {
   campaign_creative_bucket              = module.s3.bucket_name
   campaign_creative_public_base_url     = "https://${module.s3.bucket_name}.s3.${var.aws_region}.amazonaws.com"
   campaign_creative_upload_token_secret = var.campaign_creative_upload_token_secret
+
+  business_registration_upload_token_secret = var.business_registration_upload_token_secret
+  business_registration_ocr_function        = var.business_registration_ocr_function
+  # 버킷 이름은 tfvars로 받지 않고 s3 모듈이 실제로 만든 버킷에서 그대로 가져온다 -
+  # 사람이 옮겨 적으면서 어긋날 여지를 없앤다.
+  business_registration_bucket = module.s3.bucket_name
 }

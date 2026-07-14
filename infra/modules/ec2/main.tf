@@ -103,7 +103,24 @@ resource "aws_iam_role_policy" "ec2_ssm_params" {
   })
 }
 
-# 업로드된 이미지/파일 조회·저장 권한 (S3)
+# EC2가 쓰는 S3 권한 - prefix별 Statement로 분리해 최소화한다
+#
+# 이 정책이 EC2 역할의 유일한 S3 권한이다. 버킷은 여러 기능(캠페인 소재, 사업자등록증,
+# Vision 이미지)이 prefix로 나눠 쓰므로, 버킷 전체가 아니라 기능별 prefix 단위로 허용한다 -
+# 버킷 전체를 열어두면 애플리케이션에 키 조작 취약점이 하나만 생겨도 남의 객체까지 덮어쓸 수 있다.
+#
+# [사업자등록증 prefix] PutObject 하나만 준다 (team-creation-api-spec.md 8절 "보안").
+# GetObject/HeadObject를 주지 않는 이유: 팀 생성 시 S3를 다시 조회하지 않는다. 업로드 때 발급한
+# 서명 토큰(HMAC)만 검증하면 되므로 서버가 파일을 읽을 일이 아예 없다. 읽기 권한이 있으면
+# EC2 자격증명이 새는 순간 버킷에 쌓인 사업자등록증 원본(대표자명·주소·사업자번호가 찍힌
+# 민감 문서)이 통째로 열린다. 안 쓰는 권한은 주지 않는다.
+# (DeleteObject/ListBucket을 주지 않는 이유: orphan 정리 배치가 MVP에서 제외되어 지울 일도,
+#  목록을 읽을 일도 없다. 배치가 다시 생기면 그때 해당 권한을 함께 되살린다.)
+#
+# [캠페인 소재 prefix] presigned PUT URL 발급용 PutObject가 필요하다.
+# presigned URL은 서명한 역할의 권한으로 실행되므로, 이 Statement가 없으면 이미 운영 중인
+# 캠페인 소재 업로드가 통째로 403이 된다. 조회는 버킷 정책(campaign-creatives/* 익명 GetObject)이
+# 담당하므로 역할에는 읽기 권한이 필요 없다.
 resource "aws_iam_role_policy" "ec2_s3" {
   name = "${var.project_name}-ec2-s3-policy"
   role = aws_iam_role.ec2.id
@@ -112,14 +129,41 @@ resource "aws_iam_role_policy" "ec2_s3" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid      = "BusinessRegistrationUpload"
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject"]
-        Resource = "${var.s3_bucket_arn}/*"
+        Action   = "s3:PutObject"
+        Resource = "${var.s3_bucket_arn}/${var.business_registration_key_prefix}*"
       },
       {
+        Sid      = "CampaignCreativePresignedUpload"
         Effect   = "Allow"
-        Action   = "s3:ListBucket"
-        Resource = var.s3_bucket_arn
+        Action   = "s3:PutObject"
+        Resource = "${var.s3_bucket_arn}/${var.campaign_creative_key_prefix}*"
+      }
+    ]
+  })
+}
+
+# OCR Lambda 호출 권한 (DV-112)
+#
+# API Gateway를 거치지 않고 SDK로 직접 invoke한다 - API GW는 동기 호출에 29초 제한이 있고,
+# 인증(JWT authorizer)과 CORS를 따로 관리해야 하며, 인증 없이 열려 있으면 OCR 비용이 남용된다.
+# 백엔드가 이미 검증한 JWT 세션 안에서 부르면 이 문제가 전부 없어진다.
+#
+# 리소스를 그 함수 하나로 못박는다. 와일드카드를 쓰면 EC2가 계정의 모든 Lambda를 부를 수 있다.
+resource "aws_iam_role_policy" "ec2_lambda_invoke" {
+  count = var.business_registration_ocr_function_arn == "" ? 0 : 1
+
+  name = "${var.project_name}-ec2-lambda-invoke-policy"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = var.business_registration_ocr_function_arn
       }
     ]
   })
