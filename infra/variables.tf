@@ -111,6 +111,17 @@ variable "app_frontend_url" {
   type        = string
 }
 
+variable "refresh_cookie_same_site" {
+  description = <<-EOT
+    refresh_token 쿠키의 SameSite 값 (Lax/Strict/None). 기본값 Lax를 유지한다 - 프론트가
+    API와 같은 site일 때(운영) CSRF 방어에 가장 안전하다. 로컬 프론트(localhost)로 이
+    서버를 cross-site로 테스트할 때만(issue #31) terraform.tfvars에서 None으로 임시
+    오버라이드한다 - 실제 배포 전 반드시 Lax로 되돌려야 한다.
+  EOT
+  type        = string
+  default     = "Lax"
+}
+
 variable "vercel_apex_ip" {
   description = "루트 도메인(root_domain)을 Vercel에 연결하기 위한 A 레코드 값 (Vercel Domains 화면에서 확인)"
   type        = string

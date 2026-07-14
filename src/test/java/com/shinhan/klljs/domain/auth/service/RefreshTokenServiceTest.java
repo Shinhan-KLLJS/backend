@@ -168,6 +168,25 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void buildCookie_usesConfiguredSameSite_none() {
+        RefreshTokenService noneSiteService = new RefreshTokenService(
+                refreshTokenRepository, userRepository, familyRevoker, FIXED_CLOCK, TTL_SECONDS, "None"
+        );
+
+        ResponseCookie cookie = noneSiteService.buildCookie("raw-token-value");
+
+        assertThat(cookie.getSameSite()).isEqualTo("None");
+        assertThat(cookie.isSecure()).isTrue();
+    }
+
+    @Test
+    void constructor_rejectsInvalidSameSiteValue() {
+        assertThatThrownBy(() -> new RefreshTokenService(
+                refreshTokenRepository, userRepository, familyRevoker, FIXED_CLOCK, TTL_SECONDS, "NOne"
+        )).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void expireCookie_setsZeroMaxAgeWithSameAttributes() {
         ResponseCookie cookie = service.expireCookie();
 
