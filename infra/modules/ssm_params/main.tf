@@ -93,3 +93,33 @@ resource "aws_ssm_parameter" "sqs_queue_url" {
     Project = var.project_name
   }
 }
+
+resource "aws_ssm_parameter" "campaign_creative_bucket" {
+  name  = "/${var.project_name}/prod/campaign-creative-bucket"
+  type  = "String"
+  value = var.campaign_creative_bucket
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "campaign_creative_public_base_url" {
+  name  = "/${var.project_name}/prod/campaign-creative-public-base-url"
+  type  = "String"
+  value = var.campaign_creative_public_base_url
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "campaign_creative_upload_token_secret" {
+  name  = "/${var.project_name}/prod/campaign-creative-upload-token-secret"
+  type  = "SecureString"
+  value = var.campaign_creative_upload_token_secret
+
+  tags = {
+    Project = var.project_name
+  }
+}

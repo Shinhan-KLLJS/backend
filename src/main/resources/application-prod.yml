@@ -47,6 +47,14 @@ app:
   frontend-url: ${APP_FRONTEND_URL}
   swagger-origin: ${APP_SWAGGER_ORIGIN:https://api.loovi.my}
 
+  campaign:
+    creative:
+      bucket: ${CAMPAIGN_CREATIVE_BUCKET}
+      region: ${CAMPAIGN_CREATIVE_REGION:ap-northeast-2}
+      public-base-url: ${CAMPAIGN_CREATIVE_PUBLIC_BASE_URL}
+      upload-token-secret: ${CAMPAIGN_CREATIVE_UPLOAD_TOKEN_SECRET}
+      upload-ttl-seconds: 3600
+
   auth:
     jwt:
       issuer: klljs

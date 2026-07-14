@@ -1,6 +1,7 @@
 package com.shinhan.klljs.domain.campaign.repository;
 
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
+import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,17 +27,52 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
      * SQS consumer가 Vision 메시지 하나를 어느 캠페인에 귀속시킬지 찾을 때 쓴다
      * (스펙 5-1절 "매체와 event_time 기준으로 현재 송출 중인 캠페인을 연결한다").
      * event_time의 KST 날짜가 캠페인 집행 기간(execution_start_date ~ execution_end_date)
-     * 안에 들어오는 캠페인을 찾는다. 정상적인 상황이면 한 매체에 같은 시점 캠페인은
-     * 하나뿐이어야 하지만(캠페인 확정 시 겹침 검증 예정, 아직 미구현), 방어적으로 List로 받는다.
+     * 안에 들어오는 캠페인을 찾는다. 등록 시 매체 잠금과 기간 충돌 검증으로 한 건만 존재해야 하지만,
+     * 과거 데이터나 수동 DB 변경의 불일치를 탐지하기 위해 List로 받아 fan-out 계층에서 모호성을 처리한다.
      */
     @Query("""
             select c from Campaign c
             where c.mediaUnit.id = :mediaUnitId
+              and c.status <> :excludedStatus
               and c.executionStartDate <= :eventDateKst
               and c.executionEndDate >= :eventDateKst
             """)
     List<Campaign> findActiveCampaignsForMediaUnit(
             @Param("mediaUnitId") Long mediaUnitId,
-            @Param("eventDateKst") LocalDate eventDateKst
+            @Param("eventDateKst") LocalDate eventDateKst,
+            @Param("excludedStatus") CampaignStatus excludedStatus
     );
+
+    /** 선택 기간과 겹치는 캠페인이 있는 매체 ID만 한 번에 조회해 목록 N+1을 방지한다. */
+    @Query("""
+            select distinct c.mediaUnit.id from Campaign c
+            where c.mediaUnit.id in :mediaUnitIds
+              and c.status <> :excludedStatus
+              and c.executionStartDate <= :requestedEndDate
+              and c.executionEndDate >= :requestedStartDate
+            """)
+    List<Long> findConflictingMediaUnitIds(
+            @Param("mediaUnitIds") List<Long> mediaUnitIds,
+            @Param("excludedStatus") CampaignStatus excludedStatus,
+            @Param("requestedStartDate") LocalDate requestedStartDate,
+            @Param("requestedEndDate") LocalDate requestedEndDate
+    );
+
+    /** 매체 잠금 안에서 최종 기간 충돌을 다시 확인한다. 경계 날짜가 닿는 경우도 충돌이다. */
+    @Query("""
+            select count(c) from Campaign c
+            where c.mediaUnit.id = :mediaUnitId
+              and c.status <> :excludedStatus
+              and c.executionStartDate <= :requestedEndDate
+              and c.executionEndDate >= :requestedStartDate
+            """)
+    long countPeriodConflicts(
+            @Param("mediaUnitId") Long mediaUnitId,
+            @Param("excludedStatus") CampaignStatus excludedStatus,
+            @Param("requestedStartDate") LocalDate requestedStartDate,
+            @Param("requestedEndDate") LocalDate requestedEndDate
+    );
+
+    /** 등록 실패는 수동 확인 대상이므로 날짜 기반 자동 상태 보정에서 제외한다. */
+    List<Campaign> findAllByStatusNot(CampaignStatus excludedStatus);
 }

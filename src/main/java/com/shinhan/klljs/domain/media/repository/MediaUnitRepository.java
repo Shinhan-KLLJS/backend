@@ -1,19 +1,32 @@
 package com.shinhan.klljs.domain.media.repository;
 
 import com.shinhan.klljs.domain.media.entity.MediaUnit;
+import com.shinhan.klljs.domain.media.entity.MediaUnitStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface MediaUnitRepository extends JpaRepository<MediaUnit, Long> {
 
     /**
-     * Vision 메시지의 board_id/device_id로 매체를 찾는다 (SQS consumer의 매체 매핑 단계).
-     * board_code/device_code 둘 다 DB에서 각각 unique라, 원래는 board_code 하나만으로도
-     * 유일하게 식별되지만 메시지에 device_id도 같이 오니 둘 다 일치하는지 확인해서
-     * "이 매체에 이 카메라가 실제로 연결돼 있는가"까지 검증한다 (카메라 교체 시
-     * MediaUnit.replaceDevice()로 device_code를 갱신하므로, 옛 device_id로 오는 메시지는
-     * 이 조건에서 걸러진다 - 교체 전 카메라가 계속 잘못된 데이터를 보내는 상황 방지).
+     * 공용 Vision 장비의 board/device 코드에 연결된 모든 ACTIVE 매체를 ID 순서로 가져온다.
+     * MVP에서는 여러 매체가 같은 고정 코드를 공유하므로 단건 Optional 조회를 사용하면 안 된다.
      */
-    Optional<MediaUnit> findByBoardCodeAndDeviceCode(String boardCode, String deviceCode);
+    List<MediaUnit> findAllByBoardCodeAndDeviceCodeAndStatusOrderByIdAsc(
+            String boardCode,
+            String deviceCode,
+            MediaUnitStatus status
+    );
+
+    List<MediaUnit> findAllByStatusOrderByMediaNameAscIdAsc(MediaUnitStatus status);
+
+    /** 기간 충돌 검사와 저장이 끝날 때까지 같은 매체의 등록 요청을 직렬화한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from MediaUnit m where m.id = :id")
+    Optional<MediaUnit> findByIdForUpdate(@Param("id") Long id);
 }

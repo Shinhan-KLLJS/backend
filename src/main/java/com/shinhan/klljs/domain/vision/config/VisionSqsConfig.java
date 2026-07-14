@@ -14,8 +14,8 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 /**
  * app.vision.sqs.consumer-enabled=true일 때만 활성화된다 (기본값 false).
  * 이 조건이 없으면 테스트 실행이나 아무 설정 없는 로컬 기동에서도 스프링 컨텍스트가 뜰 때마다
- * 실제 운영 SQS 큐에 연결을 시도하게 된다 - @EnableScheduling도 같이 이 조건 안에 묶어서,
- * consumer가 꺼져 있으면 스케줄링 인프라 자체가 아예 켜지지 않게 한다.
+ * 실제 운영 SQS 큐에 연결을 시도하게 된다. 스케줄링 인프라는 캠페인 상태 보정 설정에서도
+ * 활성화되지만, 이 조건 덕분에 consumer Bean과 AWS client는 큐 설정이 있을 때만 만들어진다.
  */
 @Configuration
 @EnableScheduling

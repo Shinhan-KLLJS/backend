@@ -44,6 +44,7 @@ dependencies {
 	// @Scheduled 폴링으로 소비한다. 자격증명은 기본 체인을 그대로 쓴다 - 로컬은 aws configure로
 	// 설정된 자격증명, 운영(EC2)은 인스턴스 프로파일(ec2_sqs IAM 정책)을 자동으로 사용한다.
 	implementation 'software.amazon.awssdk:sqs:2.42.19'
+	implementation 'software.amazon.awssdk:s3:2.42.19'
 
 	// prod: RDS MySQL
 	runtimeOnly 'com.mysql:mysql-connector-j'

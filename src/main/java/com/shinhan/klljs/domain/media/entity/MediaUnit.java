@@ -20,8 +20,10 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Vision 장비(카메라)는 매체에 내장된 것으로 간주 (board_code, device_code를 매체가 직접 가짐).
- * 카메라가 물리적으로 교체돼도 새 행을 만들지 않고 deviceCode를 갱신해서 과거 데이터 연결을 유지한다.
+ * 광고 매체의 위치, 규격, 화면 형태와 Vision 소스 매핑을 보관한다.
+ *
+ * <p>MVP에서는 모든 매체가 동일한 board/device 코드를 공유한다. 두 컬럼은 물리 장비의 소유 관계가
+ * 아니라 공용 SQS 메시지를 fan-out할 매체 집합을 찾는 매핑 키다.</p>
  */
 @Entity
 @Table(name = "media_units")
@@ -34,11 +36,11 @@ public class MediaUnit extends BaseTimeEntity {
     private Long id;
 
     // Vision 메시지의 board_id
-    @Column(name = "board_code", nullable = false, unique = true, length = 100)
+    @Column(name = "board_code", nullable = false, length = 100)
     private String boardCode;
 
     // Vision 메시지의 device_id
-    @Column(name = "device_code", nullable = false, unique = true, length = 100)
+    @Column(name = "device_code", nullable = false, length = 100)
     private String deviceCode;
 
     @Column(name = "media_name", nullable = false, length = 200)
@@ -50,10 +52,18 @@ public class MediaUnit extends BaseTimeEntity {
     @Column(name = "location_address", nullable = false, length = 500)
     private String locationAddress;
 
-    @Column(name = "latitude", precision = 10, scale = 7)
+    // 시/도. 표시용 locationAddress와 별개로 지역 필터링/검색을 위해 구조화해서 저장한다
+    // (주소 검색 API 응답을 그대로 넣는다 - locationAddress를 파싱해서 채우지 않는다).
+    @Column(name = "sido", nullable = false, length = 20)
+    private String sido;
+
+    @Column(name = "sigungu", nullable = false, length = 50)
+    private String sigungu;
+
+    @Column(name = "latitude", nullable = false, precision = 10, scale = 7)
     private BigDecimal latitude; // 위도
 
-    @Column(name = "longitude", precision = 10, scale = 7)
+    @Column(name = "longitude", nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude; // 경도
 
     @Column(name = "width_mm", nullable = false)
@@ -78,7 +88,7 @@ public class MediaUnit extends BaseTimeEntity {
 
     @Builder
     public MediaUnit(String boardCode, String deviceCode, String mediaName, String photoUrl,
-                      String locationAddress, BigDecimal latitude, BigDecimal longitude,
+                      String locationAddress, String sido, String sigungu, BigDecimal latitude, BigDecimal longitude,
                       Integer widthMm, Integer heightMm, Integer resolutionWidthPx, Integer resolutionHeightPx,
                       List<MediaUnitShapeType> shapeTypes, MediaUnitStatus status) {
         this.boardCode = boardCode;
@@ -86,6 +96,8 @@ public class MediaUnit extends BaseTimeEntity {
         this.mediaName = mediaName;
         this.photoUrl = photoUrl;
         this.locationAddress = locationAddress;
+        this.sido = sido;
+        this.sigungu = sigungu;
         this.latitude = latitude;
         this.longitude = longitude;
         this.widthMm = widthMm;
@@ -96,10 +108,6 @@ public class MediaUnit extends BaseTimeEntity {
         this.status = status;
     }
 
-    /** 카메라 교체 시 사용 — 새 media_unit 행을 만들지 않는다. */
-    public void replaceDevice(String newDeviceCode) {
-        this.deviceCode = newDeviceCode;
-    }
 
     public void changeStatus(MediaUnitStatus status) {
         this.status = status;

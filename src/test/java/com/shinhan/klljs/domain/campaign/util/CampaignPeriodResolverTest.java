@@ -3,6 +3,7 @@ package com.shinhan.klljs.domain.campaign.util;
 import com.shinhan.klljs.domain.campaign.dto.PeriodRange;
 import com.shinhan.klljs.domain.campaign.dto.PeriodStatus;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
+import com.shinhan.klljs.domain.campaign.entity.CampaignCreativeType;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
 import com.shinhan.klljs.domain.campaign.exception.CampaignErrorCode;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.AggregationWindow;
@@ -123,6 +124,9 @@ class CampaignPeriodResolverTest {
                 .executionStartDate(executionStartDate)
                 .executionEndDate(executionEndDate)
                 .dailyTargetPlayCount(1)
+                .creativeType(CampaignCreativeType.IMAGE)
+                .creativeStorageKey("test-fixtures/campaign.png")
+                .creativeOriginalFilename("campaign.png")
                 .status(CampaignStatus.IN_EXECUTION)
                 .build();
     }

@@ -1,6 +1,7 @@
 package com.shinhan.klljs.domain.vision.service;
 
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
+import com.shinhan.klljs.domain.campaign.entity.CampaignCreativeType;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
 import com.shinhan.klljs.domain.campaign.repository.CampaignRepository;
 import com.shinhan.klljs.domain.campaign.service.DashboardCampaignQueryService;
@@ -83,6 +84,9 @@ class DemographicViewRatioServiceTest {
                 .boardCode("board-1").deviceCode("device-1").mediaName("매체1")
                 .photoUrl("https://example.com/media/1.png")
                 .locationAddress("서울시 어딘가")
+                .sido("서울특별시").sigungu("강남구")
+                .latitude(new java.math.BigDecimal("37.5000000"))
+                .longitude(new java.math.BigDecimal("127.0000000"))
                 .widthMm(1200).heightMm(800)
                 .resolutionWidthPx(1920).resolutionHeightPx(1080)
                 .shapeTypes(List.of(MediaUnitShapeType.FLAT))
@@ -195,12 +199,16 @@ class DemographicViewRatioServiceTest {
     private Campaign createCampaign(LocalDate executionStartDate, LocalDate executionEndDate) {
         Campaign campaign = Campaign.builder()
                 .team(team)
+                .mediaUnit(mediaUnit)
                 .createdBy(createdBy)
                 .campaignName("캠페인A")
                 .brandName("브랜드A")
                 .executionStartDate(executionStartDate)
                 .executionEndDate(executionEndDate)
                 .dailyTargetPlayCount(100)
+                .creativeType(CampaignCreativeType.IMAGE)
+                .creativeStorageKey("test-fixtures/campaign.png")
+                .creativeOriginalFilename("campaign.png")
                 .status(CampaignStatus.IN_EXECUTION)
                 .build();
         return campaignRepository.save(campaign);
