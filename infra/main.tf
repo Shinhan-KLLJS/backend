@@ -167,7 +167,6 @@ module "ssm_params" {
   campaign_creative_public_base_url     = "https://${module.s3.bucket_name}.s3.${var.aws_region}.amazonaws.com"
   campaign_creative_upload_token_secret = var.campaign_creative_upload_token_secret
 
-  nts_service_key                           = var.nts_service_key
   business_registration_upload_token_secret = var.business_registration_upload_token_secret
   business_registration_ocr_function        = var.business_registration_ocr_function
   # 버킷 이름은 tfvars로 받지 않고 s3 모듈이 실제로 만든 버킷에서 그대로 가져온다 -

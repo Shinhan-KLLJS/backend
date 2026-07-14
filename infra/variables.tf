@@ -134,20 +134,14 @@ variable "campaign_creative_upload_token_secret" {
   sensitive   = true
 }
 
-# ──────────────── 사업자등록증 검증 (DV-112) ────────────────
-
-variable "nts_service_key" {
-  description = "국세청 사업자등록정보 진위확인 API 서비스 키 (공공데이터포털 odcloud에서 발급)"
-  type        = string
-  sensitive   = true
-}
+# ──────────────── 사업자등록증 업로드 (DV-112) ────────────────
 
 variable "business_registration_upload_token_secret" {
   description = <<-EOT
     사업자등록증 업로드 토큰 HMAC 서명 키 (openssl rand -base64 32, 32바이트 이상).
     JWT 서명 키(jwt_secret)와 반드시 다른 값을 쓴다 - 용도가 다른 키를 공유하면 한쪽이 유출됐을 때
-    다른 쪽까지 무너진다. 이 키가 유출되면 남의 사업자등록증으로 팀을 만들거나, 업태를 "광고대행"으로
-    위조해 스스로를 승인시킬 수 있다.
+    다른 쪽까지 무너진다. 이 키가 유출되면 남이 업로드한 사업자등록증 파일을 자기 것처럼 참조해
+    팀을 만들 수 있다.
   EOT
   type        = string
   sensitive   = true

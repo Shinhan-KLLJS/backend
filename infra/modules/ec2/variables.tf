@@ -25,3 +25,11 @@ variable "business_registration_key_prefix" {
   type    = string
   default = "team-registrations/"
 }
+
+# 캠페인 소재가 저장되는 S3 키 prefix.
+# 이미 운영 중인 presigned PUT 업로드(CampaignCreativeUploadService의 KEY_PREFIX)와 같은 값이어야
+# 한다 - presigned URL은 서명한 EC2 역할의 권한으로 실행되므로, 여기서 어긋나면 업로드가 403이 된다.
+variable "campaign_creative_key_prefix" {
+  type    = string
+  default = "campaign-creatives/"
+}

@@ -31,14 +31,7 @@ variable "campaign_creative_upload_token_secret" {
   sensitive = true
 }
 
-# ──────────────── 사업자등록증 검증 (DV-112) ────────────────
-# 국세청 사업자등록정보 진위확인 API (공공데이터포털 odcloud) 서비스 키.
-# 없으면 사업자등록증 검증이 500(BUSINESS_500_001)으로 막힌다.
-variable "nts_service_key" {
-  type      = string
-  sensitive = true
-}
-
+# ──────────────── 사업자등록증 업로드 (DV-112) ────────────────
 # 업로드 토큰 HMAC 서명 키. JWT 서명 키와 반드시 분리한다 - 용도가 다른 키를 공유하면
 # 한쪽이 유출됐을 때 다른 쪽까지 무너진다. 최소 256비트 무작위 값을 넣는다.
 #
