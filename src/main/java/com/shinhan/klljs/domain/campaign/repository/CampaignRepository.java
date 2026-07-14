@@ -2,12 +2,15 @@ package com.shinhan.klljs.domain.campaign.repository;
 
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface CampaignRepository extends JpaRepository<Campaign, Long> {
 
@@ -82,4 +85,15 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
 
     /** 등록 실패는 수동 확인 대상이므로 날짜 기반 자동 상태 보정에서 제외한다. */
     List<Campaign> findAllByStatusNot(CampaignStatus excludedStatus);
+
+    /**
+     * 삭제 API 전용. 같은 캠페인에 대한 동시 삭제 요청을 직렬화한다 - 잠금 없이 findById로
+     * 읽으면 두 요청이 같은 행을 동시에 읽어 둘 다 삭제를 시도할 수 있고, 그러면 나중에
+     * 커밋하는 쪽은 이미 지워진 행에 DELETE를 실행해 Hibernate가 stale-state 예외를 던진다
+     * (0 rows affected). 이 조회로 뒤 트랜잭션을 앞 트랜잭션의 커밋 이후로 미뤄서,
+     * 뒤 트랜잭션이 다시 조회했을 때 정상적으로 CAMPAIGN_NOT_FOUND(404)를 받게 한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Campaign c where c.id = :id")
+    Optional<Campaign> findByIdForUpdate(@Param("id") Long id);
 }
