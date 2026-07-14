@@ -123,7 +123,7 @@ variable "refresh_cookie_same_site" {
 
   validation {
     condition     = contains(["Lax", "Strict", "None"], var.refresh_cookie_same_site)
-    error_message = "refresh_cookie_same_site는 Lax, Strict, None 중 하나여야 합니다 - 오타가 있으면 apply는 성공해도 배포 후 브라우저가 조용히 쿠키를 거부해 refresh가 401로 재발합니다."
+    error_message = "refresh_cookie_same_site는 Lax, Strict, None 중 하나여야 합니다. 이 검증이 없으면 오타가 plan/apply를 통과해버리고, 배포된 뒤에야 브라우저가 조용히 쿠키를 거부해 refresh가 401로 재발하는 형태로 드러난다."
   }
 }
 
