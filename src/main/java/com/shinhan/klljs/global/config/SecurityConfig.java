@@ -1,5 +1,6 @@
 package com.shinhan.klljs.global.config;
 
+import com.shinhan.klljs.domain.auth.filter.OAuth2RedirectOriginFilter;
 import com.shinhan.klljs.domain.auth.handler.OAuth2LoginFailureHandler;
 import com.shinhan.klljs.domain.auth.handler.OAuth2LoginSuccessHandler;
 import com.shinhan.klljs.domain.auth.service.CustomOAuth2UserService;
@@ -11,6 +12,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfigurationSource;
 
@@ -22,17 +24,20 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler successHandler;
     private final OAuth2LoginFailureHandler failureHandler;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final OAuth2RedirectOriginFilter oauth2RedirectOriginFilter;
 
     public SecurityConfig(
             CustomOAuth2UserService customOAuth2UserService,
             OAuth2LoginSuccessHandler successHandler,
             OAuth2LoginFailureHandler failureHandler,
-            CorsConfigurationSource corsConfigurationSource
+            CorsConfigurationSource corsConfigurationSource,
+            OAuth2RedirectOriginFilter oauth2RedirectOriginFilter
     ) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.successHandler = successHandler;
         this.failureHandler = failureHandler;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.oauth2RedirectOriginFilter = oauth2RedirectOriginFilter;
     }
 
     @Bean
@@ -87,7 +92,12 @@ public class SecurityConfig {
 
                 .oauth2ResourceServer(resourceServer ->
                         resourceServer.jwt(Customizer.withDefaults())
-                );
+                )
+
+                // 로그인 시작 요청이 어느 프론트에서 왔는지, Kakao로 리다이렉트되기 전에 세션에 남긴다
+                // (issue #41 - 로컬/배포 프론트 동시 지원). 반드시 그 리다이렉트를 실행하는
+                // OAuth2AuthorizationRequestRedirectFilter보다 먼저 실행돼야 한다.
+                .addFilterBefore(oauth2RedirectOriginFilter, OAuth2AuthorizationRequestRedirectFilter.class);
 
         return http.build();
     }

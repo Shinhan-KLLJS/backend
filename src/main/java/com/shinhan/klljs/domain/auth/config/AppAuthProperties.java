@@ -19,12 +19,21 @@ public class AppAuthProperties {
         this.frontendUrl = frontendUrl;
     }
 
-    public String frontendLoginSuccessUrl() {
-        return frontendUrl + LOGIN_SUCCESS_PATH;
+    /**
+     * @param redirectOrigin 로그인을 시작한 프론트 origin(허용 목록 검증을 이미 통과한 값). null이면
+     *                       기본(운영) 프론트로 돌려보낸다 - 로그인 시작 요청에 origin 단서가 없었거나
+     *                       허용되지 않은 origin이었던 경우다.
+     */
+    public String frontendLoginSuccessUrl(String redirectOrigin) {
+        return resolveOrigin(redirectOrigin) + LOGIN_SUCCESS_PATH;
     }
 
-    public String frontendLoginFailureUrl(String reason) {
+    public String frontendLoginFailureUrl(String redirectOrigin, String reason) {
         String encodedReason = URLEncoder.encode(reason, StandardCharsets.UTF_8);
-        return frontendUrl + LOGIN_FAILURE_PATH + "?reason=" + encodedReason;
+        return resolveOrigin(redirectOrigin) + LOGIN_FAILURE_PATH + "?reason=" + encodedReason;
+    }
+
+    private String resolveOrigin(String redirectOrigin) {
+        return (redirectOrigin != null && !redirectOrigin.isBlank()) ? redirectOrigin : frontendUrl;
     }
 }

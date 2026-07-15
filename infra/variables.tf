@@ -107,8 +107,20 @@ variable "kakao_redirect_uri" {
 }
 
 variable "app_frontend_url" {
-  description = "로그인 성공/실패 후 리다이렉트할 프론트엔드 주소 (실제 브라우저 접속 origin과 정확히 일치해야 함)"
+  description = "로그인 성공/실패 후 리다이렉트할 기본(운영) 프론트엔드 주소 (실제 브라우저 접속 origin과 정확히 일치해야 함)"
   type        = string
+}
+
+variable "additional_allowed_origins" {
+  description = <<-EOT
+    app_frontend_url 외에 CORS·Origin 검증·카카오 로그인 리다이렉트를 추가로 허용할 origin 목록
+    (issue #41 - 로컬 프론트(localhost)와 배포 프론트를 동시에 지원하기 위함). 각 origin은
+    scheme+host+port까지 정확히 일치해야 한다 (예: "http://localhost:5173").
+    refresh_cookie_same_site가 Lax면 추가 origin은 전부 cross-site라 쿠키가 전달되지 않으니,
+    이 목록을 비워두지 않는 한 refresh_cookie_same_site도 None으로 둬야 한다.
+  EOT
+  type        = list(string)
+  default     = []
 }
 
 variable "refresh_cookie_same_site" {

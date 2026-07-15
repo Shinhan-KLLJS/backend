@@ -2,6 +2,7 @@ package com.shinhan.klljs.domain.auth.handler;
 
 import com.shinhan.klljs.domain.auth.config.AppAuthProperties;
 import com.shinhan.klljs.domain.auth.dto.OAuth2LoginResult;
+import com.shinhan.klljs.domain.auth.filter.OAuth2RedirectOriginFilter;
 import com.shinhan.klljs.domain.auth.principal.CustomOAuth2Principal;
 import com.shinhan.klljs.domain.auth.service.OAuth2LoginSuccessFacade;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,10 +45,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         authorizedClientService.removeAuthorizedClient("kakao", authentication.getName());
 
         HttpSession session = request.getSession(false);
+        String redirectOrigin = null;
         if (session != null) {
+            redirectOrigin = (String) session.getAttribute(OAuth2RedirectOriginFilter.SESSION_ATTRIBUTE);
             session.invalidate();
         }
 
-        response.sendRedirect(properties.frontendLoginSuccessUrl());
+        response.sendRedirect(properties.frontendLoginSuccessUrl(redirectOrigin));
     }
 }

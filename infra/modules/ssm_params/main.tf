@@ -74,6 +74,18 @@ resource "aws_ssm_parameter" "app_frontend_url" {
   }
 }
 
+resource "aws_ssm_parameter" "additional_allowed_origins" {
+  name = "/${var.project_name}/prod/additional-allowed-origins"
+  type = "String" # 콤마로 구분한 origin 목록일 뿐 비밀은 아니다
+  # SSM Parameter Store는 빈 문자열 값을 거부한다 - 부가 origin이 없으면 공백 하나로 대신한다.
+  # 앱 쪽(AllowedOriginsProperties)은 isBlank()로 걸러서 공백을 "없음"과 동일하게 취급한다.
+  value = var.additional_allowed_origins != "" ? var.additional_allowed_origins : " "
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
 resource "aws_ssm_parameter" "refresh_cookie_same_site" {
   name  = "/${var.project_name}/prod/refresh-cookie-same-site"
   type  = "String" # Lax/Strict/None 중 하나일 뿐 비밀은 아니다

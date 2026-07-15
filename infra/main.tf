@@ -42,10 +42,10 @@ module "s3" {
   source = "./modules/s3"
 
   project_name = var.project_name
-  campaign_creative_cors_origins = [
+  campaign_creative_cors_origins = concat([
     var.app_frontend_url,
     "https://${var.domain_name}",
-  ]
+  ], var.additional_allowed_origins)
 }
 
 # ------------------------------------------------------------
@@ -163,17 +163,18 @@ module "rds" {
 module "ssm_params" {
   source = "./modules/ssm_params"
 
-  project_name             = var.project_name
-  db_url                   = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
-  db_username              = var.db_username
-  db_password              = var.db_password
-  kakao_rest_api_key       = var.kakao_rest_api_key
-  kakao_client_secret      = var.kakao_client_secret
-  kakao_redirect_uri       = var.kakao_redirect_uri
-  app_frontend_url         = var.app_frontend_url
-  refresh_cookie_same_site = var.refresh_cookie_same_site
-  jwt_secret               = var.jwt_secret
-  sqs_queue_url            = module.sqs.queue_url
+  project_name               = var.project_name
+  db_url                     = "jdbc:mysql://${module.rds.endpoint}/${var.db_name}"
+  db_username                = var.db_username
+  db_password                = var.db_password
+  kakao_rest_api_key         = var.kakao_rest_api_key
+  kakao_client_secret        = var.kakao_client_secret
+  kakao_redirect_uri         = var.kakao_redirect_uri
+  app_frontend_url           = var.app_frontend_url
+  additional_allowed_origins = join(",", var.additional_allowed_origins)
+  refresh_cookie_same_site   = var.refresh_cookie_same_site
+  jwt_secret                 = var.jwt_secret
+  sqs_queue_url              = module.sqs.queue_url
 
   campaign_creative_bucket              = module.s3.bucket_name
   campaign_creative_public_base_url     = "https://${module.s3.bucket_name}.s3.${var.aws_region}.amazonaws.com"
