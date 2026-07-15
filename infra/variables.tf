@@ -54,7 +54,7 @@ variable "ec2_instance_type" {
 }
 
 variable "ec2_ami_id" {
-  description = "EC2에 사용할 AMI ID. most_recent 자동조회 대신 고정값을 쓴다 - 관련없는 apply 도중 AMI가 갱신되어 인스턴스가 재생성되는 사고를 막기 위함. 의도적으로 업그레이드할 때만 이 값을 바꾼다 (aws ec2 describe-images --owners amazon --filters \"Name=name,Values=al2023-ami-*-x86_64\" --query \"reverse(sort_by(Images,&CreationDate))[0].ImageId\")."
+  description = "EC2에 사용할 AMI ID. most_recent 자동조회 대신 고정값을 쓴다 - 관련없는 apply 도중 AMI가 갱신되어 인스턴스가 재생성되는 사고를 막기 위함. 의도적으로 업그레이드할 때만 이 값을 바꾼다 (aws ec2 describe-images --owners amazon --filters \"Name=name,Values=al2023-ami-2023*-x86_64\" --query \"reverse(sort_by(Images,&CreationDate))[0].ImageId\"). 필터를 al2023-ami-*-x86_64로 넓게 쓰면 ECS-Optimized 변형(al2023-ami-ecs-hvm-...)까지 같이 걸려서 실수로 그게 뽑힐 수 있다 - 이 프로젝트는 ECS를 쓰지 않으므로 2023*로 좁혀 일반 AMI만 매칭한다."
   type        = string
 }
 
