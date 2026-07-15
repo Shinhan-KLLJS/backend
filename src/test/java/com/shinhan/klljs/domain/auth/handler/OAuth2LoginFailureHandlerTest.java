@@ -1,6 +1,7 @@
 package com.shinhan.klljs.domain.auth.handler;
 
 import com.shinhan.klljs.domain.auth.config.AppAuthProperties;
+import com.shinhan.klljs.domain.auth.filter.OAuth2RedirectOriginFilter;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -59,6 +60,19 @@ class OAuth2LoginFailureHandlerTest {
         String redirectedUrl = handle(new BadCredentialsException("unexpected"));
 
         assertThat(redirectedUrl).isEqualTo("https://app.example.com/login/failure?reason=INTERNAL_ERROR");
+    }
+
+    @Test
+    void redirectsToSessionOriginWhenPresent() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        HttpSession session = request.getSession(true);
+        session.setAttribute(OAuth2RedirectOriginFilter.SESSION_ATTRIBUTE, "http://localhost:5173");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationFailure(request, response, new OAuth2AuthenticationException("USER_SUSPENDED"));
+
+        assertThat(response.getRedirectedUrl())
+                .isEqualTo("http://localhost:5173/login/failure?reason=USER_SUSPENDED");
     }
 
     @Test

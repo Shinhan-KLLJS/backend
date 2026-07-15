@@ -2,6 +2,7 @@ package com.shinhan.klljs.domain.auth.handler;
 
 import com.shinhan.klljs.domain.auth.config.AppAuthProperties;
 import com.shinhan.klljs.domain.auth.dto.OAuth2LoginResult;
+import com.shinhan.klljs.domain.auth.filter.OAuth2RedirectOriginFilter;
 import com.shinhan.klljs.domain.auth.principal.CustomOAuth2Principal;
 import com.shinhan.klljs.domain.auth.service.OAuth2LoginSuccessFacade;
 import jakarta.servlet.http.HttpSession;
@@ -50,5 +51,23 @@ class OAuth2LoginSuccessHandlerTest {
         verify(authorizedClientService).removeAuthorizedClient(eq("kakao"), eq("123456789"));
         assertThatThrownBy(() -> session.getAttribute("anything")).isInstanceOf(IllegalStateException.class);
         assertThat(response.getRedirectedUrl()).isEqualTo("https://app.example.com/login/success");
+    }
+
+    @Test
+    void onAuthenticationSuccess_redirectsToSessionOriginWhenPresent() throws Exception {
+        CustomOAuth2Principal principal = new CustomOAuth2Principal(42L, "123456789", Map.of("id", 123456789L));
+        Authentication authentication = new TestingAuthenticationToken(principal, null);
+
+        ResponseCookie cookie = ResponseCookie.from("refresh_token", "raw-value").httpOnly(true).build();
+        when(facade.complete(42L)).thenReturn(new OAuth2LoginResult(cookie));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        HttpSession session = request.getSession(true);
+        session.setAttribute(OAuth2RedirectOriginFilter.SESSION_ATTRIBUTE, "http://localhost:5173");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        assertThat(response.getRedirectedUrl()).isEqualTo("http://localhost:5173/login/success");
     }
 }

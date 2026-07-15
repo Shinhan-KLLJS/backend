@@ -1,5 +1,6 @@
 package com.shinhan.klljs.global.security;
 
+import com.shinhan.klljs.global.config.AllowedOriginsProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -12,7 +13,9 @@ import static org.mockito.Mockito.when;
 
 class TrustedOriginValidatorTest {
 
-    private final TrustedOriginValidator validator = new TrustedOriginValidator("https://www.loovi.my", "https://api.loovi.my");
+    private final TrustedOriginValidator validator = new TrustedOriginValidator(
+            new AllowedOriginsProperties("https://www.loovi.my", ""), "https://api.loovi.my"
+    );
 
     @Test
     void validate_passesWhenOriginMatches() {
@@ -20,6 +23,17 @@ class TrustedOriginValidatorTest {
         when(request.getHeader(HttpHeaders.ORIGIN)).thenReturn("https://www.loovi.my");
 
         assertThatCode(() -> validator.validate(request)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void validate_passesWhenAdditionalAllowedOriginMatches() {
+        TrustedOriginValidator multiOriginValidator = new TrustedOriginValidator(
+                new AllowedOriginsProperties("https://www.loovi.my", "http://localhost:5173"), ""
+        );
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getHeader(HttpHeaders.ORIGIN)).thenReturn("http://localhost:5173");
+
+        assertThatCode(() -> multiOriginValidator.validate(request)).doesNotThrowAnyException();
     }
 
     @Test

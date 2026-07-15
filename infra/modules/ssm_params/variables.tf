@@ -15,7 +15,8 @@ variable "kakao_client_secret" {
 }
 variable "kakao_redirect_uri" { type = string }
 variable "app_frontend_url" { type = string }
-variable "refresh_cookie_same_site" { type = string } # Lax/Strict/None - 비밀 아님
+variable "additional_allowed_origins" { type = string } # 콤마로 구분한 부가 origin 목록 - 비밀 아님
+variable "refresh_cookie_same_site" { type = string }   # Lax/Strict/None - 비밀 아님
 variable "jwt_secret" {
   type      = string
   sensitive = true

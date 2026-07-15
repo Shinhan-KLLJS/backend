@@ -45,6 +45,9 @@ spring:
 
 app:
   frontend-url: ${APP_FRONTEND_URL}
+  # 콤마로 구분한 부가 origin (issue #41) - 값이 없으면 SSM에 공백 하나가 들어있다.
+  # AllowedOriginsProperties가 isBlank()로 걸러서 "없음"과 동일하게 처리한다.
+  additional-allowed-origins: ${ADDITIONAL_ALLOWED_ORIGINS:}
   swagger-origin: ${APP_SWAGGER_ORIGIN:https://api.loovi.my}
 
   campaign:

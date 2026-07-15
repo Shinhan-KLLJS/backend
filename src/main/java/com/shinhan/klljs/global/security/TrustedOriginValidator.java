@@ -1,12 +1,12 @@
 package com.shinhan.klljs.global.security;
 
+import com.shinhan.klljs.global.config.AllowedOriginsProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -21,10 +21,14 @@ public class TrustedOriginValidator {
     private final Set<String> allowedOrigins;
 
     public TrustedOriginValidator(
-            @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl,
+            AllowedOriginsProperties allowedOriginsProperties,
             @Value("${app.swagger-origin:}") String swaggerOrigin
     ) {
-        this.allowedOrigins = allowedOrigins(frontendUrl, swaggerOrigin);
+        LinkedHashSet<String> origins = new LinkedHashSet<>(allowedOriginsProperties.origins());
+        if (swaggerOrigin != null && !swaggerOrigin.isBlank()) {
+            origins.add(swaggerOrigin.trim());
+        }
+        this.allowedOrigins = Set.copyOf(origins);
     }
 
     public void validate(HttpServletRequest request) {
@@ -35,45 +39,11 @@ public class TrustedOriginValidator {
             return;
         }
 
-        String refererOrigin = refererOrigin(referer);
+        String refererOrigin = RefererOriginParser.parse(referer);
         if (refererOrigin != null && allowedOrigins.contains(refererOrigin)) {
             return;
         }
 
         throw new AccessDeniedException("Untrusted browser origin");
-    }
-
-    /**
-     * Referer는 전체 URL(경로 포함)이라 문자열 startsWith로 비교하면
-     * "https://loovi.my.evil.com"처럼 허용 origin을 접두사로 갖는 도메인에 우회당한다.
-     * scheme+host+port만 재조합해 Origin 헤더와 동일한 기준(정확히 일치)으로 비교한다.
-     */
-    private String refererOrigin(String referer) {
-        if (referer == null) {
-            return null;
-        }
-        try {
-            URI uri = URI.create(referer);
-            String scheme = uri.getScheme();
-            String host = uri.getHost();
-            if (scheme == null || host == null) {
-                return null;
-            }
-            int port = uri.getPort();
-            return port == -1 ? scheme + "://" + host : scheme + "://" + host + ":" + port;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private static Set<String> allowedOrigins(String... origins) {
-        LinkedHashSet<String> allowedOrigins = new LinkedHashSet<>();
-        for (String origin : origins) {
-            if (origin == null || origin.isBlank()) {
-                continue;
-            }
-            allowedOrigins.add(origin.trim());
-        }
-        return Set.copyOf(allowedOrigins);
     }
 }

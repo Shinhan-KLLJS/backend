@@ -69,6 +69,7 @@ jobs:
           KAKAO_CLIENT_SECRET=\$(aws ssm get-parameter --name /vision/prod/kakao-client-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
           KAKAO_REDIRECT_URI=\$(aws ssm get-parameter --name /vision/prod/kakao-redirect-uri --query Parameter.Value --output text --region ap-northeast-2)
           APP_FRONTEND_URL=\$(aws ssm get-parameter --name /vision/prod/app-frontend-url --query Parameter.Value --output text --region ap-northeast-2)
+          ADDITIONAL_ALLOWED_ORIGINS=\$(aws ssm get-parameter --name /vision/prod/additional-allowed-origins --query Parameter.Value --output text --region ap-northeast-2)
           REFRESH_COOKIE_SAME_SITE=\$(aws ssm get-parameter --name /vision/prod/refresh-cookie-same-site --query Parameter.Value --output text --region ap-northeast-2)
           JWT_SECRET=\$(aws ssm get-parameter --name /vision/prod/jwt-secret --with-decryption --query Parameter.Value --output text --region ap-northeast-2)
           VISION_SQS_QUEUE_URL=\$(aws ssm get-parameter --name /vision/prod/sqs-queue-url --query Parameter.Value --output text --region ap-northeast-2)
@@ -92,6 +93,7 @@ jobs:
               -e KAKAO_CLIENT_SECRET="\$KAKAO_CLIENT_SECRET" \
               -e KAKAO_REDIRECT_URI="\$KAKAO_REDIRECT_URI" \
               -e APP_FRONTEND_URL="\$APP_FRONTEND_URL" \
+              -e ADDITIONAL_ALLOWED_ORIGINS="\$ADDITIONAL_ALLOWED_ORIGINS" \
               -e REFRESH_COOKIE_SAME_SITE="\$REFRESH_COOKIE_SAME_SITE" \
               -e JWT_SECRET="\$JWT_SECRET" \
               -e VISION_SQS_QUEUE_URL="\$VISION_SQS_QUEUE_URL" \

@@ -1,6 +1,7 @@
 package com.shinhan.klljs.domain.auth.handler;
 
 import com.shinhan.klljs.domain.auth.config.AppAuthProperties;
+import com.shinhan.klljs.domain.auth.filter.OAuth2RedirectOriginFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -41,11 +42,13 @@ public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
         log.warn("Kakao login failed", exception);
 
         HttpSession session = request.getSession(false);
+        String redirectOrigin = null;
         if (session != null) {
+            redirectOrigin = (String) session.getAttribute(OAuth2RedirectOriginFilter.SESSION_ATTRIBUTE);
             session.invalidate();
         }
 
-        response.sendRedirect(properties.frontendLoginFailureUrl(mapToSafeReason(exception)));
+        response.sendRedirect(properties.frontendLoginFailureUrl(redirectOrigin, mapToSafeReason(exception)));
     }
 
     private String mapToSafeReason(AuthenticationException exception) {
