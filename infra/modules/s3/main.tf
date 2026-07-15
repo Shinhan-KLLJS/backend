@@ -40,8 +40,12 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
   }
 }
 
-# campaign-creatives/* 오브젝트만 익명 GetObject를 허용한다.
-# 다른 프리픽스(예: 팀 사업자 등록 서류)는 이 정책에 포함되지 않으므로 계속 비공개로 남는다.
+# 버킷 하나엔 정책이 하나뿐이라 프리픽스별 접근 규칙을 전부 이 리소스 하나에 모은다.
+# - campaign-creatives/*: 익명 GetObject 허용 (캠페인 소재는 공개 URL로 노출되어야 함)
+# - team-registrations/*: OCR Lambda 실행 역할에만 GetObject 허용 (cross-account, issue #43).
+#   Lambda 쪽 실행 역할의 IAM 정책도 별도로 이 버킷에 대한 s3:GetObject를 허용해야 실제로 통과된다 -
+#   이 statement 하나만으로는 부족하다.
+# 그 외 프리픽스는 이 정책에 포함되지 않으므로 계속 비공개로 남는다.
 resource "aws_s3_bucket_policy" "campaign_creatives_public_read" {
   bucket = aws_s3_bucket.uploads.id
 
@@ -57,6 +61,15 @@ resource "aws_s3_bucket_policy" "campaign_creatives_public_read" {
         Principal = "*"
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.uploads.arn}/campaign-creatives/*"
+      },
+      {
+        Sid    = "AllowOcrLambdaReadBusinessRegistrationDocs"
+        Effect = "Allow"
+        Principal = {
+          AWS = var.business_registration_ocr_lambda_role_arn
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.uploads.arn}/team-registrations/*"
       }
     ]
   })

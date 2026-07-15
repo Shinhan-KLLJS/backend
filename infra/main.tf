@@ -46,6 +46,7 @@ module "s3" {
     var.app_frontend_url,
     "https://${var.domain_name}",
   ], var.additional_allowed_origins)
+  business_registration_ocr_lambda_role_arn = var.business_registration_ocr_lambda_role_arn
 }
 
 # ------------------------------------------------------------

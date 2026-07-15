@@ -189,3 +189,14 @@ variable "business_registration_ocr_function_arn" {
   type        = string
   default     = ""
 }
+
+variable "business_registration_ocr_lambda_role_arn" {
+  description = <<-EOT
+    OCR Lambda의 실행 역할(Execution Role) ARN (biz-eligibility 레포/다른 AWS 계정 소유).
+    사업자등록증 원본(team-registrations/*)에 대한 S3 버킷 정책에서 이 역할만 s3:GetObject를
+    허용하는 데 쓴다. Cross-account S3 접근은 버킷 정책(이 값)과 Lambda 쪽 실행 역할의 IAM
+    정책 둘 다 명시적으로 허용해야 한다 - 이 값만으로는 부족하고, Lambda 쪽에서도 우리 버킷에
+    대한 s3:GetObject 권한을 자신의 역할에 추가해야 한다.
+  EOT
+  type        = string
+}
