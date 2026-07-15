@@ -192,12 +192,28 @@ resource "aws_instance" "spring" {
   user_data_replace_on_change = true
 
   # Docker 설치 (컨테이너 배포는 CI/CD에서 SSM Run Command로 수행)
+  # t3.micro(1GB RAM)라 스왑 없이는 배포 중 OOM 위험이 있어 1GB swapfile을 부팅 시 만들어둔다 -
+  # vm.swappiness는 낮게 둬서 평소엔 RAM을 우선 쓰고 진짜 메모리 부족할 때만 스왑을 쓰게 한다.
   user_data = base64encode(<<-EOF
     #!/bin/bash
     dnf install -y docker
     systemctl enable docker
     systemctl start docker
     usermod -aG docker ec2-user
+
+    if ! swapon --show | grep -q '/swapfile'; then
+      fallocate -l 1G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      grep -q '^/swapfile ' /etc/fstab || echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
+    fi
+    if grep -q '^vm.swappiness' /etc/sysctl.conf 2>/dev/null; then
+      sed -i 's/^vm.swappiness.*/vm.swappiness=10/' /etc/sysctl.conf
+    else
+      echo 'vm.swappiness=10' >> /etc/sysctl.conf
+    fi
+    sysctl -w vm.swappiness=10
   EOF
   )
 
