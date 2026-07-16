@@ -62,6 +62,10 @@ dependencies {
 	// 이미지(JPG/PNG)는 JDK의 ImageIO로 디코딩해보면 되어 별도 의존성이 필요 없다.
 	implementation 'org.apache.pdfbox:pdfbox:3.0.8'
 
+	// 매체 위경도(WGS84) -> 서울시 250m 격자좌표계(EPSG:5179, UTM-K) 변환.
+	// 전체 유동인구 연동(깔대기 그래프 6절)에서 매체 위치가 속한 격자코드를 계산하는 데 쓴다.
+	implementation 'org.locationtech.proj4j:proj4j:1.4.1'
+
 	// prod: RDS MySQL
 	runtimeOnly 'com.mysql:mysql-connector-j'
 

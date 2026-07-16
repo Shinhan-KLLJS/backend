@@ -26,16 +26,15 @@ public record FunnelResponse(
         Metrics metrics
 ) {
     /**
-     * 전체 유동인구를 매핑한 서울시 공공데이터 250m 구역 정보. MVP는 전체 유동인구용 DB 스키마를
-     * 보류했으므로(스펙 9절 "전체 유동인구 DB 스키마") mock provider가 값을 채운다.
+     * 전체 유동인구를 매핑한 서울시 공공데이터(250m격자 생활인구) 구역 정보.
      * areaId/gridSizeMeter/dataSource/isMock/dataAggregationUnit은 캠페인이 집행 전이어도
      * (매체 위치 자체는 이미 알고 있으므로) 항상 채워지고, dataDateRange만 집행 전이면 null이다.
      */
     public record TrafficArea(
-            String areaId,
+            String areaId, // 매체 위경도로 계산한 250m 격자코드 (예: "다사52255350")
             int gridSizeMeter, // 항상 250
-            String dataSource, // 실제 공공데이터 연동 전까지 항상 "MOCK_SEOUL_OPEN_DATA"
-            boolean isMock, // 실제 공공데이터 연동 전까지 항상 true
+            String dataSource, // 항상 "SEOUL_OPEN_DATA"
+            boolean isMock, // 항상 false
             String dataAggregationUnit, // 항상 "DAY"
             PeriodRange dataDateRange // 전체 유동인구 계산에 사용한 날짜 범위. 집행 전이면 null
     ) {

@@ -41,11 +41,13 @@ public interface FunnelControllerDocs {
 
                     노출인구가 0이면 주목 전환률은 계산할 수 없으므로 `value: null`로 응답한다 (0으로 나누지 않음).
 
-                    ### ⚠️ 전체 유동인구는 현재 mock 값이다
-                    서울시 공공데이터 연동 전이라 `metrics.totalTrafficCount`와 `trafficArea`는 실제 데이터가
-                    아니라 **하루 고정 상수 기반의 mock 값**이다. `trafficArea.dataSource`가 항상
-                    `"MOCK_SEOUL_OPEN_DATA"`, `trafficArea.isMock`이 항상 `true`로 내려오는 걸로 구분할 수 있다.
-                    노출인구/주목인구(카메라 관측치)와 출처·의미가 다르므로 화면에서도 구분해서 보여주는 걸 권장한다.
+                    ### 전체 유동인구 (서울시 공공데이터)
+                    `metrics.totalTrafficCount`는 매체 위경도로 계산한 250m 격자코드의 서울시
+                    "250M격자 생활인구(내국인)" 하루 합계다(`grid_population_daily`, 관리자 API로 수동
+                    적재 - 최종적으로는 스케줄러가 매일 적재한다). 원본 데이터는 발행까지 약 4일이 걸려
+                    여유를 둔 **6일 지연**으로 매핑한다 - 예를 들어 오늘(KST) 조회의 `totalTrafficCount`는
+                    실제로는 "오늘-6일"의 격자 데이터다. 노출인구/주목인구(카메라 관측치)와 출처·수집
+                    방식이 다르므로 화면에서도 구분해서 보여주는 걸 권장한다.
 
                     ### `trafficArea`
                     - `areaId`/`gridSizeMeter`/`dataSource`/`isMock`/`dataAggregationUnit`은 매체 위치 정보라
@@ -66,9 +68,8 @@ public interface FunnelControllerDocs {
                       `00:00:00`~`16:43:00`, 어제 비교 범위는 `2026-07-06 00:00:00`~`2026-07-06 16:43:00`이다.
                     - `increaseRate = (오늘 값 - 어제 값) / 어제 값 * 100`
                     - 어제 값이 0이면 나눌 수 없으므로 `increaseRate`만 `null`로 응답한다(`baseValue: 0`은 그대로 내려줌).
-                    - 전체 유동인구(mock)의 `yesterdayComparison`도 항상 같은 하루 고정 상수를 기준으로 계산되므로
-                      `increaseRate`가 항상 `0.0`으로 나온다 - 실제 공공데이터 연동 전까지는 이 증가율이
-                      진짜 변동을 나타내지 않는다는 점에 유의해야 한다.
+                    - 전체 유동인구도 같은 방식이지만, 비교 기준일이 6일 지연 매핑을 거친다 - 오늘 값은
+                      "오늘-6일" 격자 데이터, 비교값은 "어제-6일" 격자 데이터다.
                     - AFTER_EXECUTION 상태에서 우연히 오늘 날짜를 선택해도(이미 끝난 캠페인) 이 경우
                       `effectivePeriod`가 "오늘"이 아니라 캠페인 집행 기간 전체가 되므로 비교 자체를 하지 않는다.
 
@@ -96,10 +97,10 @@ public interface FunnelControllerDocs {
                                 "aggregationCutoffTime": "2026-07-07T16:43:00+09:00",
                                 "refreshIntervalSec": 60,
                                 "trafficArea": {
-                                  "areaId": "SEOUL_250M_MOCK_1",
+                                  "areaId": "다사52255350",
                                   "gridSizeMeter": 250,
-                                  "dataSource": "MOCK_SEOUL_OPEN_DATA",
-                                  "isMock": true,
+                                  "dataSource": "SEOUL_OPEN_DATA",
+                                  "isMock": false,
                                   "dataAggregationUnit": "DAY",
                                   "dataDateRange": { "startDate": "2026-07-07", "endDate": "2026-07-07" }
                                 },
@@ -107,7 +108,7 @@ public interface FunnelControllerDocs {
                                   "totalTrafficCount": {
                                     "value": 50000,
                                     "unit": "people",
-                                    "yesterdayComparison": { "baseDate": "2026-07-06", "baseValue": 50000, "increaseRate": 0.0 }
+                                    "yesterdayComparison": { "baseDate": "2026-07-06", "baseValue": 48500, "increaseRate": 3.1 }
                                   },
                                   "exposedPopulationCount": {
                                     "value": 8123,

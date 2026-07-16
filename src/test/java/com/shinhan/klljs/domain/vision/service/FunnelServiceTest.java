@@ -14,6 +14,9 @@ import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
 import com.shinhan.klljs.domain.team.entity.TeamMemberStatus;
 import com.shinhan.klljs.domain.team.entity.TeamStatus;
 import com.shinhan.klljs.domain.team.repository.TeamMemberRepository;
+import com.shinhan.klljs.domain.traffic.entity.GridPopulationDaily;
+import com.shinhan.klljs.domain.traffic.repository.GridPopulationDailyRepository;
+import com.shinhan.klljs.domain.traffic.util.GridCodeCalculator;
 import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.entity.UserStatus;
 import com.shinhan.klljs.domain.vision.dto.FunnelResponse;
@@ -52,6 +55,8 @@ class FunnelServiceTest {
     @Autowired
     private VisionSummary5sRepository visionSummary5sRepository;
     @Autowired
+    private GridPopulationDailyRepository gridPopulationDailyRepository;
+    @Autowired
     private EntityManager entityManager;
 
     private FunnelService service;
@@ -59,11 +64,12 @@ class FunnelServiceTest {
     private User createdBy;
     private Team team;
     private MediaUnit mediaUnit;
+    private String gridCode;
 
     @BeforeEach
     void setUp() {
         DashboardCampaignQueryService queryService = new DashboardCampaignQueryService(campaignRepository, teamMemberRepository);
-        service = new FunnelService(queryService, visionSummary5sRepository, FIXED_CLOCK);
+        service = new FunnelService(queryService, visionSummary5sRepository, gridPopulationDailyRepository, FIXED_CLOCK);
 
         team = Team.builder().teamName("팀A").status(TeamStatus.ACTIVE).build();
         entityManager.persist(team);
@@ -91,6 +97,16 @@ class FunnelServiceTest {
                 .status(MediaUnitStatus.ACTIVE)
                 .build();
         entityManager.persist(mediaUnit);
+
+        gridCode = GridCodeCalculator.calculate(mediaUnit.getLatitude(), mediaUnit.getLongitude());
+    }
+
+    private void seedGridPopulation(LocalDate populationDate, long totalTrafficCount) {
+        entityManager.persist(GridPopulationDaily.builder()
+                .gridCode(gridCode)
+                .populationDate(populationDate)
+                .totalTrafficCount(totalTrafficCount)
+                .build());
     }
 
     @Test
@@ -107,7 +123,8 @@ class FunnelServiceTest {
 
         // trafficArea는 매체 위치 정보라 집행 전이어도 dataDateRange 빼고는 채워진다.
         assertThat(response.trafficArea().gridSizeMeter()).isEqualTo(250);
-        assertThat(response.trafficArea().isMock()).isTrue();
+        assertThat(response.trafficArea().areaId()).isEqualTo(gridCode);
+        assertThat(response.trafficArea().isMock()).isFalse();
         assertThat(response.trafficArea().dataDateRange()).isNull();
 
         assertThat(response.metrics().totalTrafficCount().value()).isNull();
@@ -122,6 +139,10 @@ class FunnelServiceTest {
 
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 1, 10, 0, 0), 100, 20);
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 2, 15, 0, 0), 50, 10);
+
+        // 전체 유동인구는 6일 지연 매핑이라 07-01/07-02 조회는 06-25/06-26 격자 데이터를 본다.
+        seedGridPopulation(LocalDate.of(2026, 6, 25), 1_000L);
+        seedGridPopulation(LocalDate.of(2026, 6, 26), 2_000L);
 
         FunnelResponse response = service.getFunnel(
                 userId, campaign.getId(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 2));
@@ -139,8 +160,8 @@ class FunnelServiceTest {
         assertThat(response.metrics().attentionConversionRate().yesterdayComparison()).isNull();
         assertThat(response.metrics().totalTrafficCount().yesterdayComparison()).isNull();
 
-        // mock 전체 유동인구 = 하루 50,000 * 2일
-        assertThat(response.metrics().totalTrafficCount().value()).isEqualTo(100_000L);
+        // 전체 유동인구 = 06-25(1,000) + 06-26(2,000) 격자 하루 합계
+        assertThat(response.metrics().totalTrafficCount().value()).isEqualTo(3_000L);
     }
 
     @Test
@@ -153,6 +174,10 @@ class FunnelServiceTest {
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 7, 16, 43, 10), 9999, 9999);
         // 어제(07-06) 같은 범위(00:00~16:43) 안의 데이터.
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 6, 9, 0, 0), 100, 10);
+
+        // 전체 유동인구 6일 지연 매핑: 오늘(07-07) -> 07-01 격자, 어제(07-06) -> 06-30 격자.
+        seedGridPopulation(LocalDate.of(2026, 7, 1), 300L);
+        seedGridPopulation(LocalDate.of(2026, 6, 30), 200L);
 
         FunnelResponse response = service.getFunnel(
                 userId, campaign.getId(), LocalDate.of(2026, 7, 7), LocalDate.of(2026, 7, 7));
@@ -177,9 +202,14 @@ class FunnelServiceTest {
         assertThat(conversion.yesterdayComparison().baseValue()).isEqualTo(10.0);
         assertThat(conversion.yesterdayComparison().increaseRate()).isEqualTo(100.0);
 
-        // mock 전체 유동인구도 오늘 조회면 어제 비교값이 항상 같이 내려온다 (고정 상수라 증가율은 0.0).
-        assertThat(response.metrics().totalTrafficCount().yesterdayComparison()).isNotNull();
-        assertThat(response.metrics().totalTrafficCount().yesterdayComparison().increaseRate()).isEqualTo(0.0);
+        // 전체 유동인구: 오늘 값 300(07-01 격자), 어제 비교값 200(06-30 격자) -> 증가율 (300-200)/200*100=50.0
+        assertThat(response.metrics().totalTrafficCount().value()).isEqualTo(300L);
+        FunnelResponse.PopulationMetric.YesterdayComparison trafficComparison =
+                response.metrics().totalTrafficCount().yesterdayComparison();
+        assertThat(trafficComparison).isNotNull();
+        assertThat(trafficComparison.baseDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(trafficComparison.baseValue()).isEqualTo(200L);
+        assertThat(trafficComparison.increaseRate()).isEqualTo(50.0);
     }
 
     @Test

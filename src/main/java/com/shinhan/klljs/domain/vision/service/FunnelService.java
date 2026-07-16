@@ -7,6 +7,10 @@ import com.shinhan.klljs.domain.campaign.service.DashboardCampaignQueryService;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.AggregationWindow;
 import com.shinhan.klljs.domain.campaign.util.CampaignPeriodResolver.CampaignPeriodContext;
+import com.shinhan.klljs.domain.media.entity.MediaUnit;
+import com.shinhan.klljs.domain.traffic.repository.GridPopulationDailyRepository;
+import com.shinhan.klljs.domain.traffic.util.GridCodeCalculator;
+import com.shinhan.klljs.domain.traffic.util.PopulationDataLag;
 import com.shinhan.klljs.domain.vision.dto.FunnelResponse;
 import com.shinhan.klljs.domain.vision.repository.VisionSummary5sRepository;
 import com.shinhan.klljs.domain.vision.repository.VisionSummary5sRepository.PopulationSums;
@@ -25,8 +29,9 @@ import java.time.temporal.ChronoUnit;
  * 6. 깔대기 그래프 대시보드 조회 API(스펙 6절)를 처리한다.
  *
  * 전체 유동인구/노출인구/주목인구/주목 전환률 4개 지표와, "오늘" 조회일 때만 어제 같은
- * 시간대 대비 증가율을 함께 응답한다. 전체 유동인구는 서울시 공공데이터 연동 전이라
- * (스펙 9절 "전체 유동인구 DB 스키마" 보류 항목) mock provider가 값을 채운다.
+ * 시간대 대비 증가율을 함께 응답한다. 전체 유동인구는 매체 위경도로 계산한 격자코드의
+ * grid_population_daily(서울시 250m격자 생활인구, PopulationIngestService가 적재)를
+ * {@link PopulationDataLag}만큼 시프트해서 조회한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,14 +40,12 @@ public class FunnelService {
     private static final String AGGREGATION_UNIT = "MINUTE";
     private static final int REFRESH_INTERVAL_SEC = 60;
     private static final int TRAFFIC_GRID_SIZE_METER = 250;
-    private static final String MOCK_DATA_SOURCE = "MOCK_SEOUL_OPEN_DATA";
-    private static final String MOCK_DATA_AGGREGATION_UNIT = "DAY";
-    // 서울시 공공데이터 연동 전까지 쓰는 하루치 고정 목업 유동인구. 실제 좌표->구역 매핑과
-    // 공공데이터 적재 파이프라인이 준비되면 이 상수와 mockTotalTrafficMetric()을 통째로 교체한다.
-    private static final long MOCK_DAILY_TRAFFIC_COUNT = 50_000L;
+    private static final String TRAFFIC_DATA_SOURCE = "SEOUL_OPEN_DATA";
+    private static final String TRAFFIC_DATA_AGGREGATION_UNIT = "DAY";
 
     private final DashboardCampaignQueryService dashboardCampaignQueryService;
     private final VisionSummary5sRepository visionSummary5sRepository;
+    private final GridPopulationDailyRepository gridPopulationDailyRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -61,7 +64,7 @@ public class FunnelService {
             return new FunnelResponse(
                     campaign.getId(), periodContext.selectedPeriod(), null, periodContext.periodStatus(),
                     serverTime, AGGREGATION_UNIT, null, REFRESH_INTERVAL_SEC,
-                    mockTrafficArea(campaign, null),
+                    trafficArea(campaign, null),
                     emptyMetrics()
             );
         }
@@ -100,12 +103,13 @@ public class FunnelService {
         Double conversionYesterday = yesterdaySums == null ? null : conversionRate(attentionYesterday, exposedYesterday);
         FunnelResponse.RateMetric conversionMetric = rateMetric(conversionToday, conversionYesterday, yesterdayDate);
 
-        FunnelResponse.PopulationMetric totalTrafficMetric = mockTotalTrafficMetric(effectivePeriod, isTodayQuery, yesterdayDate);
+        FunnelResponse.PopulationMetric totalTrafficMetric =
+                totalTrafficMetric(campaign, effectivePeriod, isTodayQuery, yesterdayDate);
 
         return new FunnelResponse(
                 campaign.getId(), periodContext.selectedPeriod(), effectivePeriod, periodContext.periodStatus(),
                 serverTime, AGGREGATION_UNIT, window.cutoffTime(), REFRESH_INTERVAL_SEC,
-                mockTrafficArea(campaign, effectivePeriod),
+                trafficArea(campaign, effectivePeriod),
                 new FunnelResponse.Metrics(totalTrafficMetric, exposedMetric, attentionMetric, conversionMetric)
         );
     }
@@ -142,31 +146,46 @@ public class FunnelService {
     }
 
     /**
-     * 전체 유동인구 mock 값. 하루당 고정 상수(MOCK_DAILY_TRAFFIC_COUNT)에 effectivePeriod 일수를
-     * 곱한다. 오늘 조회일 때의 어제 비교값도 같은 고정 상수를 쓰므로 increaseRate는 항상 0.0이 된다 -
-     * 실제 공공데이터 연동 전까지는 이 증가율이 진짜 변동을 나타내지 않는다는 점에 유의해야 한다.
+     * 전체 유동인구. 매체 위경도로 계산한 격자코드의 grid_population_daily 하루 합계를,
+     * effectivePeriod를 {@link PopulationDataLag#DAYS}만큼 과거로 시프트한 구간 전체에 대해
+     * 더한다 (발행 지연 6일 매핑 - 스펙 9절 "전체 유동인구 DB 스키마" 항목 해소).
+     * 어제 대비 증가율도 같은 방식으로 "어제-6일" 하루치를 조회해서 계산한다.
      */
-    private FunnelResponse.PopulationMetric mockTotalTrafficMetric(PeriodRange effectivePeriod, boolean isTodayQuery, LocalDate yesterdayDate) {
-        long days = ChronoUnit.DAYS.between(effectivePeriod.startDate(), effectivePeriod.endDate()) + 1;
-        long value = MOCK_DAILY_TRAFFIC_COUNT * days;
+    private FunnelResponse.PopulationMetric totalTrafficMetric(
+            Campaign campaign, PeriodRange effectivePeriod, boolean isTodayQuery, LocalDate yesterdayDate
+    ) {
+        String gridCode = gridCode(campaign);
 
-        FunnelResponse.PopulationMetric.YesterdayComparison comparison = null;
+        long todayValue = gridPopulationDailyRepository.sumTotalTrafficCount(
+                gridCode,
+                effectivePeriod.startDate().minusDays(PopulationDataLag.DAYS),
+                effectivePeriod.endDate().minusDays(PopulationDataLag.DAYS)
+        );
+
+        Long yesterdayValue = null;
         if (isTodayQuery) {
-            comparison = new FunnelResponse.PopulationMetric.YesterdayComparison(yesterdayDate, MOCK_DAILY_TRAFFIC_COUNT, 0.0);
+            LocalDate laggedYesterday = yesterdayDate.minusDays(PopulationDataLag.DAYS);
+            yesterdayValue = gridPopulationDailyRepository.sumTotalTrafficCount(gridCode, laggedYesterday, laggedYesterday);
         }
-        return new FunnelResponse.PopulationMetric(value, "people", comparison);
+
+        return populationMetric(todayValue, yesterdayValue, yesterdayDate);
     }
 
     /** dataDateRange만 상황에 따라 다르고(집행 전이면 null) 나머지 필드는 항상 고정값이라 공용으로 뺐다. */
-    private FunnelResponse.TrafficArea mockTrafficArea(Campaign campaign, PeriodRange dataDateRange) {
+    private FunnelResponse.TrafficArea trafficArea(Campaign campaign, PeriodRange dataDateRange) {
         return new FunnelResponse.TrafficArea(
-                "SEOUL_250M_MOCK_" + campaign.getId(),
+                gridCode(campaign),
                 TRAFFIC_GRID_SIZE_METER,
-                MOCK_DATA_SOURCE,
-                true,
-                MOCK_DATA_AGGREGATION_UNIT,
+                TRAFFIC_DATA_SOURCE,
+                false,
+                TRAFFIC_DATA_AGGREGATION_UNIT,
                 dataDateRange
         );
+    }
+
+    private String gridCode(Campaign campaign) {
+        MediaUnit mediaUnit = campaign.getMediaUnit();
+        return GridCodeCalculator.calculate(mediaUnit.getLatitude(), mediaUnit.getLongitude());
     }
 
     private FunnelResponse.Metrics emptyMetrics() {
