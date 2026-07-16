@@ -2,7 +2,8 @@
 # modules/s3/main.tf
 # 이미지/파일 업로드용 S3 버킷
 # - 기본은 퍼블릭 접근 완전 차단, 접근은 IAM 정책(ai_producer, EC2 role)으로만 제어
-# - campaign-creatives/* 프리픽스만 예외적으로 공개 읽기 허용 (캠페인 소재는 공개 URL로 노출되어야 함)
+# - campaign-creatives/*, media-units/* 프리픽스만 예외적으로 공개 읽기 허용
+#   (캠페인 소재와 매체 사진은 공개 URL로 노출되어야 함)
 # ============================================================
 
 data "aws_caller_identity" "current" {}
@@ -42,6 +43,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
 
 # 버킷 하나엔 정책이 하나뿐이라 프리픽스별 접근 규칙을 전부 이 리소스 하나에 모은다.
 # - campaign-creatives/*: 익명 GetObject 허용 (캠페인 소재는 공개 URL로 노출되어야 함)
+# - media-units/*: 익명 GetObject 허용 (매체 목록/상세의 사진 URL로 노출되어야 함)
 # - team-registrations/*: OCR Lambda 실행 역할에만 GetObject 허용 (cross-account, issue #43).
 #   Lambda 쪽 실행 역할의 IAM 정책도 별도로 이 버킷에 대한 s3:GetObject를 허용해야 실제로 통과된다 -
 #   이 statement 하나만으로는 부족하다.
@@ -61,6 +63,13 @@ resource "aws_s3_bucket_policy" "campaign_creatives_public_read" {
         Principal = "*"
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.uploads.arn}/campaign-creatives/*"
+      },
+      {
+        Sid       = "PublicReadMediaUnitPhotos"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.uploads.arn}/media-units/*"
       },
       {
         Sid    = "AllowOcrLambdaReadBusinessRegistrationDocs"

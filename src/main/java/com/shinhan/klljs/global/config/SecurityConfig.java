@@ -75,6 +75,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/**", // 회원가입, 로그인 같은 인증 관련 API도 접근 허용
                                 // MVP 운영자가 Swagger/내부 도구에서 직접 등록하는 공개 관리 API.
                                 "/api/v1/admin/media-units",
+                                // 서울시 생활인구 격자 데이터 수동 적재 API. 최종적으로는 스케줄러가 대신
+                                // 호출할 내부 배치용이라 media-units 등록 API와 동일하게 인증 없이 허용한다.
+                                "/api/v1/admin/traffic/population-ingest",
                                 "/oauth2/authorization/kakao",
                                 "/login/oauth2/code/kakao"
                         ).permitAll()
