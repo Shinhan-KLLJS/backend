@@ -121,9 +121,9 @@ public interface FunnelControllerDocs {
                                     "yesterdayComparison": { "baseDate": "2026-07-06", "baseValue": 115, "increaseRate": 7.0 }
                                   },
                                   "attentionConversionRate": {
-                                    "value": 1.51,
+                                    "value": 1.5,
                                     "unit": "percent",
-                                    "yesterdayComparison": { "baseDate": "2026-07-06", "baseValue": 1.41, "increaseRate": 7.1 }
+                                    "yesterdayComparison": { "baseDate": "2026-07-06", "baseValue": 1.4, "increaseRate": 7.1 }
                                   }
                                 }
                               }

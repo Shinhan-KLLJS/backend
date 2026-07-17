@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -122,12 +124,17 @@ public class FunnelService {
         if (yesterdayValue == null) {
             return new FunnelResponse.PopulationMetric(todayValue, "people", null);
         }
-        Double increaseRate = yesterdayValue == 0 ? null : (todayValue - yesterdayValue) * 100.0 / yesterdayValue;
+        Double increaseRate = yesterdayValue == 0 ? null : round1((todayValue - yesterdayValue) * 100.0 / yesterdayValue);
         var comparison = new FunnelResponse.PopulationMetric.YesterdayComparison(yesterdayDate, yesterdayValue, increaseRate);
         return new FunnelResponse.PopulationMetric(todayValue, "people", comparison);
     }
 
-    /** attentionConversionRate = attentionCount / exposedCount * 100. exposedCount가 0이면 계산 불가하므로 null. */
+    /**
+     * attentionConversionRate = attentionCount / exposedCount * 100. exposedCount가 0이면 계산 불가하므로 null.
+     * 반올림하지 않은 원시값을 반환한다 - rateMetric()의 increaseRate 계산이 이 값을 그대로 써야
+     * "반올림한 오늘/어제 값끼리의 증가율"이 아니라 "실제 원시 지표 기준 증가율"이 나온다
+     * (미리 반올림한 값으로 증가율을 계산하면 반올림 오차가 누적된다).
+     */
     private Double conversionRate(long attentionCount, long exposedCount) {
         return exposedCount == 0 ? null : attentionCount * 100.0 / exposedCount;
     }
@@ -135,14 +142,21 @@ public class FunnelService {
     /**
      * 주목 전환률의 어제 대비 증가율. todayValue/yesterdayValue 둘 중 하나라도 null이면(각각
      * 노출인구가 0이라 전환률 자체가 없거나, 오늘 조회가 아니면) 비교값 전체를 null로 응답한다.
+     * increaseRate는 반올림 전의 원시 todayValue/yesterdayValue로 계산한 뒤 결과만 반올림한다 -
+     * value/baseValue 표시용 반올림과 increaseRate 계산용 원시값을 분리해야 한다.
      */
     private FunnelResponse.RateMetric rateMetric(Double todayValue, Double yesterdayValue, LocalDate yesterdayDate) {
         if (todayValue == null || yesterdayValue == null) {
-            return new FunnelResponse.RateMetric(todayValue, "percent", null);
+            return new FunnelResponse.RateMetric(round1(todayValue), "percent", null);
         }
-        Double increaseRate = yesterdayValue == 0 ? null : (todayValue - yesterdayValue) * 100.0 / yesterdayValue;
-        var comparison = new FunnelResponse.RateMetric.YesterdayComparison(yesterdayDate, yesterdayValue, increaseRate);
-        return new FunnelResponse.RateMetric(todayValue, "percent", comparison);
+        Double increaseRate = yesterdayValue == 0 ? null : round1((todayValue - yesterdayValue) * 100.0 / yesterdayValue);
+        var comparison = new FunnelResponse.RateMetric.YesterdayComparison(yesterdayDate, round1(yesterdayValue), increaseRate);
+        return new FunnelResponse.RateMetric(round1(todayValue), "percent", comparison);
+    }
+
+    /** 퍼센트 값은 화면에 소수점 첫째 자리까지만 노출한다 (소수점 둘째 자리에서 반올림, issue #46). */
+    private static Double round1(Double value) {
+        return value == null ? null : BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
 
     /**
