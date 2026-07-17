@@ -235,8 +235,23 @@ class FunnelServiceTest {
         FunnelResponse.RateMetric conversion = response.metrics().attentionConversionRate();
         assertThat(conversion.value()).isEqualTo(12.7);
         assertThat(conversion.yesterdayComparison().baseValue()).isEqualTo(12.5);
-        // 전환률 증가율: (12.7-12.5)/12.5*100 = 1.6%
-        assertThat(conversion.yesterdayComparison().increaseRate()).isEqualTo(1.6);
+        // 전환률 증가율은 반올림된 12.7/12.5가 아니라 원시값(12.727272.../12.5) 기준으로 계산한다 -
+        // (12.727272...-12.5)/12.5*100 = 1.818181...% -> 1.8. 미리 반올림한 값끼리 계산하면 1.6%이
+        // 나와버려서 실제 지표와 어긋난다(이 문제로 리뷰에서 지적됨).
+        assertThat(conversion.yesterdayComparison().increaseRate()).isEqualTo(1.8);
+    }
+
+    @Test
+    void conversionRate_halfUpBoundary_roundsUpAtExactlyPointFive() {
+        Campaign campaign = createCampaign(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
+        // 253/2000*100 = 12.65% 정확히(부동소수점으로도 12.65가 정확히 표현됨) -
+        // HALF_EVEN이었다면 12.6으로, HALF_UP이면 12.7로 반올림된다.
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 1, 9, 0, 0), 2000, 253);
+
+        FunnelResponse response = service.getFunnel(
+                userId, campaign.getId(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 1));
+
+        assertThat(response.metrics().attentionConversionRate().value()).isEqualTo(12.7);
     }
 
     @Test
