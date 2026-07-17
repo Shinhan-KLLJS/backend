@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -122,14 +124,14 @@ public class FunnelService {
         if (yesterdayValue == null) {
             return new FunnelResponse.PopulationMetric(todayValue, "people", null);
         }
-        Double increaseRate = yesterdayValue == 0 ? null : (todayValue - yesterdayValue) * 100.0 / yesterdayValue;
+        Double increaseRate = yesterdayValue == 0 ? null : round1((todayValue - yesterdayValue) * 100.0 / yesterdayValue);
         var comparison = new FunnelResponse.PopulationMetric.YesterdayComparison(yesterdayDate, yesterdayValue, increaseRate);
         return new FunnelResponse.PopulationMetric(todayValue, "people", comparison);
     }
 
     /** attentionConversionRate = attentionCount / exposedCount * 100. exposedCount가 0이면 계산 불가하므로 null. */
     private Double conversionRate(long attentionCount, long exposedCount) {
-        return exposedCount == 0 ? null : attentionCount * 100.0 / exposedCount;
+        return exposedCount == 0 ? null : round1(attentionCount * 100.0 / exposedCount);
     }
 
     /**
@@ -140,9 +142,14 @@ public class FunnelService {
         if (todayValue == null || yesterdayValue == null) {
             return new FunnelResponse.RateMetric(todayValue, "percent", null);
         }
-        Double increaseRate = yesterdayValue == 0 ? null : (todayValue - yesterdayValue) * 100.0 / yesterdayValue;
+        Double increaseRate = yesterdayValue == 0 ? null : round1((todayValue - yesterdayValue) * 100.0 / yesterdayValue);
         var comparison = new FunnelResponse.RateMetric.YesterdayComparison(yesterdayDate, yesterdayValue, increaseRate);
         return new FunnelResponse.RateMetric(todayValue, "percent", comparison);
+    }
+
+    /** 퍼센트 값은 화면에 소수점 첫째 자리까지만 노출한다 (소수점 둘째 자리에서 반올림, issue #46). */
+    private static double round1(double value) {
+        return BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
 
     /**

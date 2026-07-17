@@ -213,6 +213,33 @@ class FunnelServiceTest {
     }
 
     @Test
+    void todayQuery_ratesAreRoundedToOneDecimalPlace() {
+        Campaign campaign = createCampaign(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
+
+        // 오늘(07-07): 노출 110, 주목 14 -> 전환률 14/110*100 = 12.7272...%
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 7, 9, 0, 0), 110, 14);
+        // 어제(07-06): 노출 96, 주목 12 -> 전환률 12/96*100 = 12.5%
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 6, 9, 0, 0), 96, 12);
+
+        FunnelResponse response = service.getFunnel(
+                userId, campaign.getId(), LocalDate.of(2026, 7, 7), LocalDate.of(2026, 7, 7));
+
+        // 노출인구 증가율: (110-96)/96*100 = 14.58333...% -> 14.6
+        assertThat(response.metrics().exposedPopulationCount().yesterdayComparison().increaseRate())
+                .isEqualTo(14.6);
+        // 주목인구 증가율: (14-12)/12*100 = 16.6666...% -> 16.7
+        assertThat(response.metrics().attentionPopulationCount().yesterdayComparison().increaseRate())
+                .isEqualTo(16.7);
+
+        // 주목 전환률 자체도 반올림된다: 14/110*100 = 12.7272...% -> 12.7, 12/96*100 = 12.5%(그대로)
+        FunnelResponse.RateMetric conversion = response.metrics().attentionConversionRate();
+        assertThat(conversion.value()).isEqualTo(12.7);
+        assertThat(conversion.yesterdayComparison().baseValue()).isEqualTo(12.5);
+        // 전환률 증가율: (12.7-12.5)/12.5*100 = 1.6%
+        assertThat(conversion.yesterdayComparison().increaseRate()).isEqualTo(1.6);
+    }
+
+    @Test
     void zeroExposedPopulation_conversionRateIsNullInsteadOfDivideByZero() {
         Campaign campaign = createCampaign(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
         // ots_count=0인 row만 있는 상황(주목만 있고 노출은 0인 건 현실적으로 이상하지만,
