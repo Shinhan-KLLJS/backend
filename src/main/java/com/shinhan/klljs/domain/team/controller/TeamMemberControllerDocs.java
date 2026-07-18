@@ -77,7 +77,11 @@ public interface TeamMemberControllerDocs {
             @Parameter(description = "대상 사용자 ID", example = "2") Long userId
     );
 
-    @Operation(summary = "팀 나가기", description = "ADMIN/MEMBER가 팀을 나간다. OWNER는 먼저 역할을 이전해야 한다.")
+    @Operation(
+            summary = "팀 나가기",
+            description = "ADMIN/MEMBER가 팀을 나간다. OWNER는 다른 ACTIVE 멤버가 있으면 먼저 역할을 이전해야 하고, "
+                    + "팀에 자기 혼자뿐이면(유일한 ACTIVE 멤버) 이전 없이 바로 나갈 수 있다."
+    )
     ApiResponse<Void> leaveTeam(
             @Parameter(hidden = true) Jwt jwt,
             @Parameter(description = "팀 ID", example = "1") Long teamId

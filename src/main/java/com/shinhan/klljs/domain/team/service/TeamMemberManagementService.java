@@ -114,13 +114,23 @@ public class TeamMemberManagementService {
         target.changeStatus(TeamMemberStatus.REMOVED);
     }
 
+    /**
+     * OWNER는 원래 나가기 전에 다른 멤버에게 역할을 이전해야 하지만, 팀에 자기 혼자뿐이면
+     * 이전할 대상이 없어 영원히 못 나가게 된다. 그래서 유일한 ACTIVE 멤버인 경우만 예외적으로
+     * 바로 나가는 걸 허용한다.
+     *
+     * MVP 한정 절충안이다 - 팀 삭제/해지 기능이 아직 없어서, 이렇게 나가면 팀은 ACTIVE 상태로
+     * 멤버 없이 남고 그 팀의 캠페인·초대링크·사업자등록은 계속 DB에 남아있지만 아무도 접근할 수
+     * 없다("유령 팀"). MVP에서는 팀 수가 적어 발생 시 운영자가 DB에서 직접 정리하기로 함.
+     */
     @Transactional
     public void leaveTeam(Long requesterId, Long teamId) {
         Team team = lockTeam(teamId);
         TeamMember requester = requireActiveMember(requesterId, teamId);
         requireActiveTeam(team);
 
-        if (requester.getRole() == TeamMemberRole.OWNER) {
+        boolean isSoleActiveMember = teamMemberRepository.countByTeamIdAndStatus(teamId, TeamMemberStatus.ACTIVE) == 1;
+        if (requester.getRole() == TeamMemberRole.OWNER && !isSoleActiveMember) {
             throw new GeneralException(TeamErrorCode.OWNER_TRANSFER_REQUIRED);
         }
         requester.changeStatus(TeamMemberStatus.LEFT);

@@ -112,15 +112,36 @@ class TeamMemberManagementServiceTest {
     }
 
     @Test
-    void leaveTeam_rejectsOwner() {
+    void leaveTeam_rejectsOwnerWhenOtherActiveMembersExist() {
         Team team = persistTeam(TeamStatus.ACTIVE);
         TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
+        persistMember(team, "멤버", "member@example.com", TeamMemberRole.MEMBER, TeamMemberStatus.ACTIVE);
         entityManager.flush();
 
         assertTeamError(
                 () -> service.leaveTeam(owner.getUser().getId(), team.getId()),
                 TeamErrorCode.OWNER_TRANSFER_REQUIRED
         );
+    }
+
+    @Test
+    void leaveTeam_allowsSoleOwnerToLeaveWithoutTransfer() {
+        Team team = persistTeam(TeamStatus.ACTIVE);
+        TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
+        // 비활성 이력 멤버를 같이 둬서 countByTeamIdAndStatus가 ACTIVE만 세는지도 검증한다 -
+        // 멤버가 owner 하나뿐이면 상태 필터가 빠진 버그가 있어도 우연히 통과해버린다.
+        TeamMember leftMember = persistMember(team, "이전 멤버", "left@example.com", TeamMemberRole.MEMBER, TeamMemberStatus.LEFT);
+        entityManager.flush();
+
+        service.leaveTeam(owner.getUser().getId(), team.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // 영속성 컨텍스트를 비우고 다시 조회해서, 메모리상 엔티티 상태가 아니라 실제 DB 반영 여부를 확인한다.
+        assertThat(entityManager.find(TeamMember.class, owner.getId()).getStatus()).isEqualTo(TeamMemberStatus.LEFT);
+        assertThat(entityManager.find(TeamMember.class, leftMember.getId()).getStatus()).isEqualTo(TeamMemberStatus.LEFT);
+        // 팀 삭제 기능이 없으므로 "유령 팀"이 되어도 팀 상태 자체는 ACTIVE로 남는다(PR 설명 참고).
+        assertThat(entityManager.find(Team.class, team.getId()).getStatus()).isEqualTo(TeamStatus.ACTIVE);
     }
 
     @Test
