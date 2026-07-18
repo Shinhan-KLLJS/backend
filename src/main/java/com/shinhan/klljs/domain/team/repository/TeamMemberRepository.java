@@ -67,4 +67,7 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
             @Param("teamId") Long teamId,
             @Param("status") TeamMemberStatus status
     );
+
+    /** 팀 나가기에서 "이 OWNER가 유일한 ACTIVE 멤버인지" 판별할 때 쓴다. */
+    long countByTeamIdAndStatus(Long teamId, TeamMemberStatus status);
 }

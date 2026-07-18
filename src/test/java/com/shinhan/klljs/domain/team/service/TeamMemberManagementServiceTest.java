@@ -112,15 +112,27 @@ class TeamMemberManagementServiceTest {
     }
 
     @Test
-    void leaveTeam_rejectsOwner() {
+    void leaveTeam_rejectsOwnerWhenOtherActiveMembersExist() {
         Team team = persistTeam(TeamStatus.ACTIVE);
         TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
+        persistMember(team, "멤버", "member@example.com", TeamMemberRole.MEMBER, TeamMemberStatus.ACTIVE);
         entityManager.flush();
 
         assertTeamError(
                 () -> service.leaveTeam(owner.getUser().getId(), team.getId()),
                 TeamErrorCode.OWNER_TRANSFER_REQUIRED
         );
+    }
+
+    @Test
+    void leaveTeam_allowsSoleOwnerToLeaveWithoutTransfer() {
+        Team team = persistTeam(TeamStatus.ACTIVE);
+        TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
+        entityManager.flush();
+
+        service.leaveTeam(owner.getUser().getId(), team.getId());
+
+        assertThat(owner.getStatus()).isEqualTo(TeamMemberStatus.LEFT);
     }
 
     @Test
