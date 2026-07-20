@@ -4,7 +4,6 @@ import com.shinhan.klljs.domain.team.dto.TeamInviteCodeResponse;
 import com.shinhan.klljs.domain.team.entity.Team;
 import com.shinhan.klljs.domain.team.entity.TeamInviteLink;
 import com.shinhan.klljs.domain.team.entity.TeamMember;
-import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
 import com.shinhan.klljs.domain.team.entity.TeamMemberStatus;
 import com.shinhan.klljs.domain.team.entity.TeamStatus;
 import com.shinhan.klljs.domain.team.exception.InviteCodeCollisionException;
@@ -14,7 +13,6 @@ import com.shinhan.klljs.domain.team.repository.TeamMemberRepository;
 import com.shinhan.klljs.domain.team.repository.TeamRepository;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
 import com.shinhan.klljs.global.util.KstDateTimes;
-import com.shinhan.klljs.global.util.TokenHasher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -45,9 +43,6 @@ public class TeamInviteCodeTransactionService {
         if (team.getStatus() != TeamStatus.ACTIVE) {
             throw new GeneralException(TeamErrorCode.TEAM_NOT_ACTIVE);
         }
-        if (requester.getRole() == TeamMemberRole.MEMBER) {
-            throw new GeneralException(TeamErrorCode.TEAM_MANAGEMENT_FORBIDDEN);
-        }
 
         LocalDateTime nowUtc = LocalDateTime.now(clock);
         teamInviteLinkRepository.findByTeamIdAndRevokedAtIsNull(teamId).ifPresent(activeInvite -> {
@@ -60,7 +55,7 @@ public class TeamInviteCodeTransactionService {
         TeamInviteLink invite = TeamInviteLink.builder()
                 .team(team)
                 .createdBy(requester.getUser())
-                .tokenHash(TokenHasher.sha256(rawCode))
+                .inviteCode(rawCode)
                 .maxUses(null)
                 .expiresAt(expiresAtUtc)
                 .build();
@@ -68,7 +63,7 @@ public class TeamInviteCodeTransactionService {
         try {
             teamInviteLinkRepository.saveAndFlush(invite);
         } catch (DataIntegrityViolationException e) {
-            if (isTokenHashCollision(e)) {
+            if (isInviteCodeCollision(e)) {
                 throw new InviteCodeCollisionException(e);
             }
             throw e;
@@ -77,15 +72,15 @@ public class TeamInviteCodeTransactionService {
         return new TeamInviteCodeResponse(rawCode, KstDateTimes.toKstOffset(expiresAtUtc));
     }
 
-    private boolean isTokenHashCollision(DataIntegrityViolationException exception) {
+    private boolean isInviteCodeCollision(DataIntegrityViolationException exception) {
         Throwable cause = exception.getMostSpecificCause();
         String message = cause == null ? exception.getMessage() : cause.getMessage();
         if (message == null) {
             return false;
         }
         String normalized = message.toLowerCase(Locale.ROOT);
-        return normalized.contains("uk_invite_token_hash")
-                || (normalized.contains("token_hash")
+        return normalized.contains("uk_invite_code")
+                || (normalized.contains("invite_code")
                 && (normalized.contains("unique") || normalized.contains("duplicate")));
     }
 }

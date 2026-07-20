@@ -67,13 +67,16 @@ class CampaignRegistrationServiceTest {
     }
 
     @Test
-    void register_rejectsMemberRole() {
+    void register_allowsMemberRole() {
         Fixture fixture = persistFixture(TeamMemberRole.MEMBER, MediaUnitStatus.ACTIVE);
 
-        assertThatThrownBy(() -> service.register(
+        CampaignRegistrationResponse response = service.register(
                 fixture.user().getId(), fixture.team().getId(), validRequest(fixture)
-        )).isInstanceOfSatisfying(GeneralException.class, exception ->
-                assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.CAMPAIGN_MANAGEMENT_FORBIDDEN));
+        );
+        entityManager.flush();
+
+        Campaign campaign = entityManager.find(Campaign.class, response.campaignId());
+        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.REGISTERED);
     }
 
     @Test
