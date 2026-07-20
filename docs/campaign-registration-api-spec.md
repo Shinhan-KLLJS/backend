@@ -458,16 +458,21 @@ Content-Type: application/json
 | 필드 | 필수 | 타입 | 설명 |
 |---|---:|---|---|
 | `creativeToken` | Y | string | 4절 업로드 URL API가 발급한 서명 토큰 |
-| `campaignName` | Y | string | 캠페인명, 최대 200자 |
-| `brandName` | Y | string | 브랜드명, 최대 200자 |
+| `campaignName` | Y | string | 캠페인명, 최대 30자 |
+| `brandName` | Y | string | 브랜드명, 최대 20자 |
 | `executionStartDate` | Y | date | 집행 시작일, KST 달력 날짜 |
 | `executionEndDate` | Y | date | 집행 종료일, KST 달력 날짜 |
-| `dailyTargetPlayCount` | Y | integer | 하루 목표 송출 횟수, 1 이상, 별도 상한 없음 |
-| `description` | N | string | 메모, 최대 2000자 |
+| `dailyTargetPlayCount` | Y | integer | 하루 목표 송출 횟수, 1 이상 9999 이하(4자리) |
+| `description` | N | string | 메모, 최대 100자 |
 | `mediaUnitId` | Y | number | 선택한 ACTIVE 매체 ID |
 
 캠페인명·브랜드명·메모는 앞뒤 공백을 제거한다. 캠페인명과 브랜드명은 정규화 후 빈 문자열을
 거부하고, 빈 메모는 `null`로 저장한다. 캠페인명 중복은 허용한다.
+
+글자 수 제한은 한글/영문 구분 없이 문자 개수로 센다(`String.length()`, UTF-16 코드 유닛
+기준) - 한글 한 글자와 영문 한 글자 모두 동일하게 1자로 계산되므로 "30자"는 한글 30자든
+영문 30자든 똑같이 30자다. DB 컬럼(`VARCHAR`, `utf8mb4`)도 바이트가 아니라 문자 단위로
+길이를 세므로 이 기준과 일치한다.
 
 ### creativeToken 검증
 
