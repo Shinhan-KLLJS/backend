@@ -269,6 +269,7 @@ class TeamCampaignQueryServiceTest {
         assertThat(detail.creativeUrl()).contains(campaign.getCreativeStorageKey());
         assertThat(detail.mediaUnitId()).isEqualTo(fixture.mediaUnit().getId());
         assertThat(detail.mediaName()).isEqualTo("테스트 매체");
+        assertThat(detail.mediaPhotoUrl()).isEqualTo("https://cdn.example.com/media.jpg");
         assertThat(detail.mediaLocationAddress()).isEqualTo("서울 강남구 영동대로 506");
         assertThat(detail.mediaWidthMm()).isEqualTo(1000);
         assertThat(detail.mediaHeightMm()).isEqualTo(500);

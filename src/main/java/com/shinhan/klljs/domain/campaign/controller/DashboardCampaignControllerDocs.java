@@ -135,7 +135,10 @@ public interface DashboardCampaignControllerDocs {
 
                     ### 기타 필드
                     - `mediaUnitId`: 이 캠페인에 연결된 매체 ID. 캠페인 등록 시 매체 선택이 필수라 항상 값이 있다.
+                    - `mediaPhotoUrl`: 연결된 매체의 사진 URL.
                     - `dailyTargetPlayCount`: 하루 목표 송출 횟수.
+                    - `imageUrl`: 캠페인 등록 시 업로드한 소재(이미지/영상) 조회 URL. 저장된 값이 아니라
+                      매 요청마다 `creativeStorageKey`로 새로 계산한다.
                     """
     )
     @ApiResponses({
@@ -152,9 +155,10 @@ public interface DashboardCampaignControllerDocs {
                                 "campaignName": "여름 세일 프로모션",
                                 "brandName": "브랜드A",
                                 "description": "여름 시즌 프로모션 캠페인입니다.",
-                                "imageUrl": "https://cdn.example.com/campaigns/1.png",
+                                "imageUrl": "https://cdn.example.com/campaign-creatives/7/550e8400-e29b-41d4-a716-446655440000",
                                 "status": "IN_EXECUTION",
                                 "mediaUnitId": 10,
+                                "mediaPhotoUrl": "https://cdn.example.com/media-units/10.jpg",
                                 "dailyTargetPlayCount": 480,
                                 "executionPeriod": { "startDate": "2026-07-01", "endDate": "2026-07-31" },
                                 "selectedPeriod": { "startDate": "2026-06-30", "endDate": "2026-07-02" },

@@ -1,5 +1,6 @@
 package com.shinhan.klljs.domain.vision.service;
 
+import com.shinhan.klljs.domain.campaign.config.CampaignCreativeProperties;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.entity.CampaignCreativeType;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
@@ -53,6 +54,8 @@ class FunnelServiceTest {
     @Autowired
     private TeamMemberRepository teamMemberRepository;
     @Autowired
+    private CampaignCreativeProperties campaignCreativeProperties;
+    @Autowired
     private VisionSummary5sRepository visionSummary5sRepository;
     @Autowired
     private GridPopulationDailyRepository gridPopulationDailyRepository;
@@ -68,7 +71,7 @@ class FunnelServiceTest {
 
     @BeforeEach
     void setUp() {
-        DashboardCampaignQueryService queryService = new DashboardCampaignQueryService(campaignRepository, teamMemberRepository);
+        DashboardCampaignQueryService queryService = new DashboardCampaignQueryService(campaignRepository, teamMemberRepository, campaignCreativeProperties);
         service = new FunnelService(queryService, visionSummary5sRepository, gridPopulationDailyRepository, FIXED_CLOCK);
 
         team = Team.builder().teamName("팀A").status(TeamStatus.ACTIVE).build();

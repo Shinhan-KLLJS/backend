@@ -207,6 +207,7 @@ Authorization: Bearer {accessToken}
 | `creativeUrl` | string | 공개 조회 URL (`campaign-registration-api-spec.md` 4절) |
 | `mediaUnitId` | number | |
 | `mediaName` | string | |
+| `mediaPhotoUrl` | string | 매체 사진 URL |
 | `mediaLocationAddress` | string | |
 | `mediaWidthMm` / `mediaHeightMm` | number | "규격" |
 | `mediaResolutionWidthPx` / `mediaResolutionHeightPx` | number | "해상도" |
@@ -231,6 +232,7 @@ Authorization: Bearer {accessToken}
     "creativeUrl": "https://cdn.example.com/campaign-creatives/42/550e8400-e29b-41d4-a716-446655440000",
     "mediaUnitId": 12,
     "mediaName": "파르나스 미디어타워 전광판",
+    "mediaPhotoUrl": "https://cdn.example.com/media-units/12.jpg",
     "mediaLocationAddress": "서울 강남구 영동대로 513",
     "mediaWidthMm": 81000,
     "mediaHeightMm": 20000,
