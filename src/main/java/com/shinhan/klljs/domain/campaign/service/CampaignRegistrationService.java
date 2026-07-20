@@ -28,6 +28,11 @@ public class CampaignRegistrationService {
         return transactionService.register(requesterId, teamId, command);
     }
 
+    private static final int MAX_CAMPAIGN_NAME_LENGTH = 30;
+    private static final int MAX_BRAND_NAME_LENGTH = 20;
+    private static final int MAX_DESCRIPTION_LENGTH = 100;
+    private static final int MAX_DAILY_TARGET_PLAY_COUNT = 9999;
+
     private CampaignRegistrationCommand validateAndConvert(Long requesterId, CampaignRegistrationRequest request) {
         if (request == null
                 || isBlank(request.creativeToken())
@@ -35,6 +40,7 @@ public class CampaignRegistrationService {
                 || isBlank(request.brandName())
                 || request.dailyTargetPlayCount() == null
                 || request.dailyTargetPlayCount() <= 0
+                || request.dailyTargetPlayCount() > MAX_DAILY_TARGET_PLAY_COUNT
                 || request.mediaUnitId() == null
                 || request.mediaUnitId() <= 0) {
             throw invalidRequest();
@@ -43,9 +49,9 @@ public class CampaignRegistrationService {
         String campaignName = request.campaignName().trim();
         String brandName = request.brandName().trim();
         String description = normalizeDescription(request.description());
-        if (campaignName.length() > 200
-                || brandName.length() > 200
-                || (description != null && description.length() > 2000)) {
+        if (campaignName.length() > MAX_CAMPAIGN_NAME_LENGTH
+                || brandName.length() > MAX_BRAND_NAME_LENGTH
+                || (description != null && description.length() > MAX_DESCRIPTION_LENGTH)) {
             throw invalidRequest();
         }
 

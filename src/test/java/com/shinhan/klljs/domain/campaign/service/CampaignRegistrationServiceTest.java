@@ -150,6 +150,71 @@ class CampaignRegistrationServiceTest {
                 assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CREATIVE_TOKEN));
     }
 
+    @Test
+    void register_rejectsCampaignNameOverMaxLength() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        CampaignRegistrationRequest request = validRequest(fixture, "a".repeat(31), "브랜드", 100, null);
+
+        assertThatThrownBy(() -> service.register(fixture.user().getId(), fixture.team().getId(), request))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST));
+    }
+
+    @Test
+    void register_acceptsCampaignNameAtMaxLength_korean() {
+        // 글자 수 제한은 한글/영문 구분 없이 문자 개수로 센다 - 한글 30자도 정확히 30자로 통과해야 한다.
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        String thirtyKoreanChars = "가".repeat(30);
+        CampaignRegistrationRequest request = validRequest(fixture, thirtyKoreanChars, "브랜드", 100, null);
+
+        CampaignRegistrationResponse response = service.register(fixture.user().getId(), fixture.team().getId(), request);
+        entityManager.flush();
+
+        assertThat(entityManager.find(Campaign.class, response.campaignId()).getCampaignName())
+                .isEqualTo(thirtyKoreanChars);
+    }
+
+    @Test
+    void register_rejectsBrandNameOverMaxLength() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        CampaignRegistrationRequest request = validRequest(fixture, "캠페인", "b".repeat(21), 100, null);
+
+        assertThatThrownBy(() -> service.register(fixture.user().getId(), fixture.team().getId(), request))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST));
+    }
+
+    @Test
+    void register_rejectsDescriptionOverMaxLength() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        CampaignRegistrationRequest request = validRequest(fixture, "캠페인", "브랜드", 100, "d".repeat(101));
+
+        assertThatThrownBy(() -> service.register(fixture.user().getId(), fixture.team().getId(), request))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST));
+    }
+
+    @Test
+    void register_rejectsDailyTargetPlayCountOverFourDigits() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        CampaignRegistrationRequest request = validRequest(fixture, "캠페인", "브랜드", 10_000, null);
+
+        assertThatThrownBy(() -> service.register(fixture.user().getId(), fixture.team().getId(), request))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST));
+    }
+
+    @Test
+    void register_acceptsDailyTargetPlayCountAtFourDigitMax() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        CampaignRegistrationRequest request = validRequest(fixture, "캠페인", "브랜드", 9999, null);
+
+        CampaignRegistrationResponse response = service.register(fixture.user().getId(), fixture.team().getId(), request);
+        entityManager.flush();
+
+        assertThat(entityManager.find(Campaign.class, response.campaignId()).getDailyTargetPlayCount()).isEqualTo(9999);
+    }
+
     private CampaignRegistrationRequest validRequest(Fixture fixture) {
         String token = creativeTokenService.issue(
                 fixture.user().getId(),
@@ -158,6 +223,21 @@ class CampaignRegistrationServiceTest {
                 "poster.png"
         ).token();
         return requestWithToken(fixture, token);
+    }
+
+    private CampaignRegistrationRequest validRequest(
+            Fixture fixture, String campaignName, String brandName, Integer dailyTargetPlayCount, String description
+    ) {
+        String token = creativeTokenService.issue(
+                fixture.user().getId(),
+                CampaignCreativeType.IMAGE,
+                "campaign-creatives/" + fixture.user().getId() + "/test-object-" + System.nanoTime(),
+                "poster.png"
+        ).token();
+        return new CampaignRegistrationRequest(
+                token, campaignName, brandName, "2026-07-11", "2026-07-12", dailyTargetPlayCount, description,
+                fixture.mediaUnit().getId()
+        );
     }
 
     private CampaignRegistrationRequest requestWithToken(Fixture fixture, String token) {
