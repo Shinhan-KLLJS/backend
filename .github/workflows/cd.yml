@@ -85,7 +85,18 @@ jobs:
 
           run_app() {
             local image="\$1"
+            # awslogs 드라이버: CD가 매 배포마다 이전 컨테이너를 stop/rm하므로, 로그를 컨테이너
+            # 자체에만 두면 다음 배포 때 이전 컨테이너의 로그(장애 당시 로그 포함)가 통째로
+            # 사라진다 - 실제로 이 문제로 배포 직후 5xx의 원인을 확인하지 못한 적이 있다.
+            # awslogs-create-group=true는 terraform apply 전에 먼저 배포되는 경우를 대비한
+            # 안전장치이고, 평소엔 infra/modules/ec2/main.tf의 로그 그룹을 그대로 쓴다.
             docker run -d --name klljs-app --restart unless-stopped -p 8080:8080 \
+              --log-driver=awslogs \
+              --log-opt awslogs-region=ap-northeast-2 \
+              --log-opt awslogs-group=/vision/app \
+              --log-opt awslogs-create-group=true \
+              --log-opt awslogs-stream=klljs-app \
+              --log-opt awslogs-multiline-pattern="^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}" \
               -e SPRING_DATASOURCE_URL="\$DB_URL" \
               -e SPRING_DATASOURCE_USERNAME="\$DB_USERNAME" \
               -e SPRING_DATASOURCE_PASSWORD="\$DB_PASSWORD" \
