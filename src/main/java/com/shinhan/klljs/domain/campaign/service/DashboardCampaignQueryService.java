@@ -1,5 +1,6 @@
 package com.shinhan.klljs.domain.campaign.service;
 
+import com.shinhan.klljs.domain.campaign.config.CampaignCreativeProperties;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignDetailResponse;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignListResponse;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignSummary;
@@ -35,6 +36,7 @@ public class DashboardCampaignQueryService {
 
     private final CampaignRepository campaignRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final CampaignCreativeProperties campaignCreativeProperties;
 
     /**
      * 캠페인 목록 조회. 흐름:
@@ -82,7 +84,7 @@ public class DashboardCampaignQueryService {
     ) {
         Campaign campaign = getAccessibleCampaign(userId, campaignId);
         CampaignPeriodContext periodContext = CampaignPeriodResolver.resolve(campaign, selectedStartDate, selectedEndDate);
-        return DashboardCampaignDetailResponse.from(campaign, periodContext);
+        return DashboardCampaignDetailResponse.from(campaign, periodContext, campaignCreativeProperties.publicBaseUrl());
     }
 
     /**

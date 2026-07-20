@@ -195,7 +195,6 @@ public class LocalDashboardMockDataInitializer implements ApplicationRunner {
                             .executionEndDate(executionEndDate)
                             .dailyTargetPlayCount(4320)
                             .description("Local profile에서 실제 AWS SQS polling을 검증하기 위한 캠페인")
-                            .imageUrl("https://example.com/local-campaign.png")
                             .creativeType(CampaignCreativeType.IMAGE)
                             .creativeStorageKey("test-fixtures/campaign.png")
                             .creativeOriginalFilename("campaign.png")

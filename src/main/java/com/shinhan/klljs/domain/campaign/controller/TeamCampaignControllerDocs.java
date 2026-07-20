@@ -94,7 +94,7 @@ public interface TeamCampaignControllerDocs {
             description = """
                     캠페인 등록 3단계 "최종 확인" 화면과 같은 내용을 그대로 보여준다 (campaign-page-api-spec.md 5절).
                     `GET /api/v1/dashboard/campaigns/{campaignId}`(홈 대시보드용)와 달리 매체 조인 정보
-                    (매체명/주소/규격/해상도/형태)와 소재 조회 URL(`creativeUrl`)을 포함한다.
+                    (매체명/사진/주소/규격/해상도/형태)와 소재 조회 URL(`creativeUrl`)을 포함한다.
                     """
     )
     @ApiResponses({
@@ -118,6 +118,7 @@ public interface TeamCampaignControllerDocs {
                                 "creativeUrl": "https://cdn.example.com/campaign-creatives/42/550e8400-e29b-41d4-a716-446655440000",
                                 "mediaUnitId": 12,
                                 "mediaName": "파르나스 미디어타워 전광판",
+                                "mediaPhotoUrl": "https://cdn.example.com/media-units/12.jpg",
                                 "mediaLocationAddress": "서울 강남구 영동대로 513",
                                 "mediaWidthMm": 81000,
                                 "mediaHeightMm": 20000,

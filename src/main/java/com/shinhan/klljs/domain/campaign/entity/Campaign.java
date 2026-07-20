@@ -81,9 +81,6 @@ public class Campaign extends BaseTimeEntity {
     @Column(name = "creative_original_filename", nullable = false, length = 255)
     private String creativeOriginalFilename;
 
-    @Column(name = "image_url", length = 2048)
-    private String imageUrl;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private CampaignStatus status;
@@ -95,7 +92,7 @@ public class Campaign extends BaseTimeEntity {
     public Campaign(Team team, MediaUnit mediaUnit, User createdBy, String campaignName, String brandName,
                      LocalDate executionStartDate, LocalDate executionEndDate, Integer dailyTargetPlayCount,
                      String description, CampaignCreativeType creativeType, String creativeStorageKey,
-                     String creativeOriginalFilename, String imageUrl, CampaignStatus status) {
+                     String creativeOriginalFilename, CampaignStatus status) {
         if (executionEndDate.isBefore(executionStartDate)) {
             throw new IllegalArgumentException("executionEndDate must not be before executionStartDate");
         }
@@ -111,7 +108,6 @@ public class Campaign extends BaseTimeEntity {
         this.creativeType = creativeType;
         this.creativeStorageKey = creativeStorageKey;
         this.creativeOriginalFilename = creativeOriginalFilename;
-        this.imageUrl = imageUrl;
         this.status = status;
     }
 

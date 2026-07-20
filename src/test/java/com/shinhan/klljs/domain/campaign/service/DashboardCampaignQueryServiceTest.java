@@ -1,5 +1,6 @@
 package com.shinhan.klljs.domain.campaign.service;
 
+import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignDetailResponse;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignListResponse;
 import com.shinhan.klljs.domain.campaign.dto.DashboardCampaignSummary;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
@@ -75,6 +76,22 @@ class DashboardCampaignQueryServiceTest {
     }
 
     @Test
+    void getCampaignDetail_computesImageUrlFromCreativeStorageKey_andIncludesMediaPhotoUrl() {
+        // 등록 시점에 image_url을 별도로 저장하지 않는다 - creativeStorageKey로 매 요청마다 계산해야
+        // 실제 등록 플로우가 image_url을 채우는 걸 빠뜨려도(과거 버그) 절대 null이 될 수 없다.
+        MediaUnit detailMediaUnit = persistMediaUnit("https://cdn.example.com/media-units/1.jpg");
+        Campaign campaign = persistCampaign(detailMediaUnit, "campaign-creatives/1/abc123");
+        entityManager.flush();
+
+        DashboardCampaignDetailResponse detail = service.getCampaignDetail(
+                userId, campaign.getId(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 1));
+
+        assertThat(detail.imageUrl()).endsWith("campaign-creatives/1/abc123");
+        assertThat(detail.mediaPhotoUrl()).isEqualTo("https://cdn.example.com/media-units/1.jpg");
+        assertThat(detail.mediaUnitId()).isEqualTo(detailMediaUnit.getId());
+    }
+
+    @Test
     void getCampaigns_excludesRegistrationFailedRegisteredAndBeforeExecution() {
         persistCampaign("실패", CampaignStatus.REGISTRATION_FAILED);
         persistCampaign("등록완료", CampaignStatus.REGISTERED);
@@ -128,6 +145,43 @@ class DashboardCampaignQueryServiceTest {
                 .filteredOn(DashboardCampaignSummary::defaultSelected)
                 .extracting(DashboardCampaignSummary::campaignId)
                 .containsExactly(laterEnded.getId());
+    }
+
+    private MediaUnit persistMediaUnit(String photoUrl) {
+        MediaUnit unit = MediaUnit.builder()
+                .boardCode("board-" + System.nanoTime()).deviceCode("device-" + System.nanoTime())
+                .mediaName("매체")
+                .photoUrl(photoUrl)
+                .locationAddress("서울시 어딘가")
+                .sido("서울특별시").sigungu("강남구")
+                .latitude(new BigDecimal("37.5000000"))
+                .longitude(new BigDecimal("127.0000000"))
+                .widthMm(1200).heightMm(800)
+                .resolutionWidthPx(1920).resolutionHeightPx(1080)
+                .shapeTypes(List.of(MediaUnitShapeType.FLAT))
+                .status(MediaUnitStatus.ACTIVE)
+                .build();
+        entityManager.persist(unit);
+        return unit;
+    }
+
+    private Campaign persistCampaign(MediaUnit mediaUnit, String creativeStorageKey) {
+        Campaign campaign = Campaign.builder()
+                .team(team)
+                .mediaUnit(mediaUnit)
+                .createdBy(user)
+                .campaignName("캠페인")
+                .brandName("브랜드")
+                .executionStartDate(LocalDate.of(2026, 7, 1))
+                .executionEndDate(LocalDate.of(2026, 7, 31))
+                .dailyTargetPlayCount(100)
+                .creativeType(CampaignCreativeType.IMAGE)
+                .creativeStorageKey(creativeStorageKey)
+                .creativeOriginalFilename("test.png")
+                .status(CampaignStatus.IN_EXECUTION)
+                .build();
+        entityManager.persist(campaign);
+        return campaign;
     }
 
     private Campaign persistCampaign(String name, CampaignStatus status) {
