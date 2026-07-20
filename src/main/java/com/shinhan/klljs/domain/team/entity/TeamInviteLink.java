@@ -44,8 +44,8 @@ public class TeamInviteLink {
     @JoinColumn(name = "created_by_user_id", nullable = false)
     private User createdBy;
 
-    @Column(name = "token_hash", nullable = false, unique = true, columnDefinition = "BINARY(32)")
-    private byte[] tokenHash;
+    @Column(name = "invite_code", nullable = false, unique = true, length = 7)
+    private String inviteCode;
 
     /** null이면 사용 횟수 무제한 */
     @Column(name = "max_uses")
@@ -72,10 +72,10 @@ public class TeamInviteLink {
     private Long activeCodeMarker;
 
     @Builder
-    public TeamInviteLink(Team team, User createdBy, byte[] tokenHash, Integer maxUses, LocalDateTime expiresAt) {
+    public TeamInviteLink(Team team, User createdBy, String inviteCode, Integer maxUses, LocalDateTime expiresAt) {
         this.team = team;
         this.createdBy = createdBy;
-        this.tokenHash = tokenHash;
+        this.inviteCode = inviteCode;
         this.maxUses = maxUses;
         this.usedCount = 0;
         this.expiresAt = expiresAt;

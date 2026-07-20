@@ -12,7 +12,6 @@ import com.shinhan.klljs.domain.team.repository.TeamInviteLinkRepository;
 import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.entity.UserStatus;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
-import com.shinhan.klljs.global.util.TokenHasher;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +38,7 @@ class TeamInviteCodeIntegrationTest {
     private EntityManager entityManager;
 
     @Test
-    void issue_createsHashedInviteAndReturnsPlainCodeOnce() {
+    void issue_createsInviteWithPlaintextCode() {
         Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.OWNER);
 
         TeamInviteCodeResponse response = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
@@ -48,7 +47,7 @@ class TeamInviteCodeIntegrationTest {
         assertThat(response.inviteCodeExpiresAt().getOffset().getTotalSeconds()).isEqualTo(9 * 60 * 60);
 
         TeamInviteLink saved = inviteRepository.findByTeamIdAndRevokedAtIsNull(fixture.team().getId()).orElseThrow();
-        assertThat(saved.getTokenHash()).isEqualTo(TokenHasher.sha256(response.inviteCode()));
+        assertThat(saved.getInviteCode()).isEqualTo(response.inviteCode());
     }
 
     @Test
@@ -68,13 +67,12 @@ class TeamInviteCodeIntegrationTest {
     }
 
     @Test
-    void issue_rejectsMemberRole() {
+    void issue_allowsMemberRole() {
         Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.MEMBER);
 
-        assertTeamError(
-                () -> service.issue(fixture.member().getUser().getId(), fixture.team().getId()),
-                TeamErrorCode.TEAM_MANAGEMENT_FORBIDDEN
-        );
+        TeamInviteCodeResponse response = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
+
+        assertThat(response.inviteCode()).matches("[A-Z0-9]{7}");
     }
 
     @Test

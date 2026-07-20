@@ -8,7 +8,6 @@ import com.shinhan.klljs.domain.team.repository.TeamInviteLinkRepository;
 import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.entity.UserStatus;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
-import com.shinhan.klljs.global.util.TokenHasher;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,9 +44,9 @@ class TeamInviteQueryServiceTest {
 
     @Test
     void validateAndGetId_returnsIdForUsableInvite() {
-        TeamInviteLink invite = persistInvite("raw-token-1", LocalDateTime.now(FIXED_CLOCK).plusHours(24));
+        TeamInviteLink invite = persistInvite("RAWTOK1", LocalDateTime.now(FIXED_CLOCK).plusHours(24));
 
-        Long result = service.validateAndGetId("raw-token-1");
+        Long result = service.validateAndGetId("RAWTOK1");
 
         assertThat(result).isEqualTo(invite.getId());
     }
@@ -62,9 +61,9 @@ class TeamInviteQueryServiceTest {
 
     @Test
     void validateAndGetId_throwsInvalidInviteWhenExpired() {
-        persistInvite("expired-token", LocalDateTime.now(FIXED_CLOCK).minusMinutes(1));
+        persistInvite("EXPIRE1", LocalDateTime.now(FIXED_CLOCK).minusMinutes(1));
 
-        assertThatThrownBy(() -> service.validateAndGetId("expired-token"))
+        assertThatThrownBy(() -> service.validateAndGetId("EXPIRE1"))
                 .isInstanceOf(GeneralException.class)
                 .satisfies(ex -> assertThat(((GeneralException) ex).getErrorCode())
                         .isEqualTo(TeamErrorCode.INVALID_INVITE));
@@ -72,11 +71,11 @@ class TeamInviteQueryServiceTest {
 
     @Test
     void validateAndGetId_throwsInvalidInviteWhenRevoked() {
-        TeamInviteLink invite = persistInvite("revoked-token", LocalDateTime.now(FIXED_CLOCK).plusHours(24));
+        TeamInviteLink invite = persistInvite("REVOKE1", LocalDateTime.now(FIXED_CLOCK).plusHours(24));
         invite.revoke(LocalDateTime.now(FIXED_CLOCK));
         entityManager.flush();
 
-        assertThatThrownBy(() -> service.validateAndGetId("revoked-token"))
+        assertThatThrownBy(() -> service.validateAndGetId("REVOKE1"))
                 .isInstanceOf(GeneralException.class);
     }
 
@@ -90,7 +89,7 @@ class TeamInviteQueryServiceTest {
         TeamInviteLink invite = TeamInviteLink.builder()
                 .team(team)
                 .createdBy(user)
-                .tokenHash(TokenHasher.sha256(rawToken))
+                .inviteCode(rawToken)
                 .maxUses(null)
                 .expiresAt(expiresAt)
                 .build();

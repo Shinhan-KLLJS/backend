@@ -15,7 +15,7 @@ public interface CampaignRegistrationControllerDocs {
 
     @Operation(
             summary = "캠페인 최종 등록",
-            description = "OWNER 또는 ADMIN이 검증된 소재와 ACTIVE 매체를 사용해 캠페인을 등록합니다."
+            description = "팀의 ACTIVE 멤버(OWNER/ADMIN/MEMBER 누구나)가 검증된 소재와 ACTIVE 매체를 사용해 캠페인을 등록합니다."
     )
     ResponseEntity<ApiResponse<CampaignRegistrationResponse>> register(
             @Parameter(hidden = true) Jwt jwt,
