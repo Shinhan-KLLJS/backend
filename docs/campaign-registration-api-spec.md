@@ -496,7 +496,8 @@ DB에 저장하지 않고, S3 객체 확인도 하지 않는다.
 3. `media_units` 행을 `PESSIMISTIC_WRITE`로 잠근다.
 4. 매체 상태가 `ACTIVE`인지 확인한다.
 5. 같은 매체에 기간이 겹치는 `REGISTRATION_FAILED` 외 캠페인이 있는지 조회한다.
-6. 충돌이 없으면 `campaigns` 행을 `REGISTERED` 상태로 저장한다.
+6. 충돌이 없으면 KST 오늘 날짜와 집행 기간을 비교해 `BEFORE_EXECUTION`, `IN_EXECUTION`,
+   `AFTER_EXECUTION` 중 하나를 초기 상태로 저장한다.
 
 잠금 순서는 항상 `teams -> media_units`다. 같은 매체에 서로 다른 팀이 동시에 캠페인을 등록해도
 3단계의 매체 잠금에서 직렬화되며, 뒤 요청은 앞 요청이 커밋한 캠페인을 보고 `409`가 된다.
@@ -527,7 +528,7 @@ HTTP 상태는 `201 Created`다.
     "campaignId": 31,
     "teamId": 7,
     "campaignName": "0711 나이키 썸머 프로모션 홍보 영상",
-    "status": "REGISTERED",
+    "status": "IN_EXECUTION",
     "creativeType": "VIDEO",
     "creativeUrl": "https://cdn.example.com/campaign-creatives/42/550e8400-e29b-41d4-a716-446655440000",
     "mediaUnitId": 12
@@ -555,18 +556,15 @@ HTTP 상태는 `201 Created`다.
 
 ## 9. 캠페인 상태 전이
 
-최종 등록 API가 만든 최초 상태는 항상 `REGISTERED`다.
+최종 등록 API는 KST 오늘 날짜와 집행 기간을 비교해 최초 상태를 바로 결정한다.
 
 ```text
-REGISTERED
-  -> BEFORE_EXECUTION
-  -> IN_EXECUTION
-  -> AFTER_EXECUTION
+BEFORE_EXECUTION -> IN_EXECUTION -> AFTER_EXECUTION
 
 REGISTRATION_FAILED
 ```
 
-별도 스케줄러가 1분마다 현재 KST 날짜와 집행 기간을 비교해 상태를 보정한다.
+별도 스케줄러는 1분마다 현재 KST 날짜와 집행 기간을 비교해 날짜가 바뀐 뒤의 상태를 보정한다.
 
 | 조건 | 상태 |
 |---|---|
@@ -574,8 +572,8 @@ REGISTRATION_FAILED
 | `executionStartDate <= today <= executionEndDate` | `IN_EXECUTION` |
 | `today > executionEndDate` | `AFTER_EXECUTION` |
 
-따라서 `REGISTERED`는 생성 직후부터 다음 상태 보정 실행 전까지의 짧은 중간 상태다. 과거 기간으로
-등록하면 `REGISTERED -> AFTER_EXECUTION`으로 바뀐다.
+따라서 오늘이 집행 기간에 포함된 캠페인은 등록 응답부터 `IN_EXECUTION`이며, 다음 스케줄러 실행을
+기다리지 않는다. `REGISTERED`는 기존 데이터 및 향후 외부 등록 연동을 위한 호환 상태로 남긴다.
 
 현재는 외부 매체 등록 작업이 없으므로 이 API에서 `REGISTRATION_FAILED`가 만들어지지 않는다.
 향후 외부 등록 연동 또는 Mock 실패 처리를 추가할 때 사용할 예약 상태다. 일반 DB 예외는 실패 행을
@@ -770,7 +768,7 @@ fan-out 전체를 하나의 DB 트랜잭션으로 묶지 않는다. Vision 저�
 - 잠금 순서를 `teams -> media_units`로 통일한다.
 - `campaigns.media_unit_id`와 엔티티 연관관계를 필수로 만들고 `assignMediaUnit()`을 제거한다.
 - creativeToken에서 꺼낸 순수 S3 키만 DB에 저장하고 응답 URL은 base URL과 키로 만든다.
-- 생성 상태는 REGISTERED이고 REGISTRATION_FAILED는 이 API에서 만들지 않는다.
+- 생성 상태는 KST 오늘 날짜와 집행 기간으로 결정하며 REGISTRATION_FAILED는 이 API에서 만들지 않는다.
 - 과거 캠페인 등록 시 Vision 데이터 백필을 수행하지 않는다.
 
 ### SQS
@@ -820,7 +818,7 @@ fan-out 전체를 하나의 DB 트랜잭션으로 묶지 않는다. Vision 저�
 
 ### 상태와 SQS
 
-- REGISTERED에서 날짜별 BEFORE/IN/AFTER 전이
+- 등록 즉시 날짜별 BEFORE/IN/AFTER 상태 결정 및 스케줄러 보정
 - 공용 메시지가 동시에 캠페인이 있는 여러 매체에 복제 저장
 - 캠페인 없는 매체에는 저장하지 않음
 - SQS 중복 수신 시 행이 늘지 않고 ACK

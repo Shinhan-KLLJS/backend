@@ -25,6 +25,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -37,6 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class CampaignRegistrationControllerTest {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -48,6 +53,9 @@ class CampaignRegistrationControllerTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private Clock clock;
 
     @Test
     void register_returnsCreatedCampaignForAuthenticatedOwner() throws Exception {
@@ -66,7 +74,7 @@ class CampaignRegistrationControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value("COMMON_201_001"))
                 .andExpect(jsonPath("$.result.teamId").value(fixture.teamId()))
-                .andExpect(jsonPath("$.result.status").value("REGISTERED"))
+                .andExpect(jsonPath("$.result.status").value("IN_EXECUTION"))
                 .andExpect(jsonPath("$.result.creativeType").value("IMAGE"))
                 .andExpect(jsonPath("$.result.mediaUnitId").value(fixture.mediaUnitId()));
     }
@@ -114,18 +122,20 @@ class CampaignRegistrationControllerTest {
     }
 
     private String requestBody(String creativeToken, Long mediaUnitId) {
+        LocalDate today = LocalDate.now(clock.withZone(KST));
+
         return """
                 {
                   "creativeToken": "%s",
                   "campaignName": "여름 캠페인",
                   "brandName": "브랜드 A",
-                  "executionStartDate": "2026-07-11",
-                  "executionEndDate": "2026-07-12",
+                  "executionStartDate": "%s",
+                  "executionEndDate": "%s",
                   "dailyTargetPlayCount": 100,
                   "description": "인지도 분석",
                   "mediaUnitId": %d
                 }
-                """.formatted(creativeToken, mediaUnitId);
+                """.formatted(creativeToken, today, today.plusDays(1), mediaUnitId);
     }
 
     private String bearer(Long userId) {

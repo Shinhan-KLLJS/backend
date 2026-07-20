@@ -25,6 +25,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
+
 /**
  * 팀과 매체 잠금을 일정한 순서로 획득해 기간이 겹치는 캠페인의 동시 등록을 막는다.
  *
@@ -35,12 +39,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CampaignRegistrationTransactionService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final MediaUnitRepository mediaUnitRepository;
     private final CampaignRepository campaignRepository;
     private final UserRepository userRepository;
     private final CampaignCreativeProperties creativeProperties;
+    private final Clock clock;
 
     @Transactional
     public CampaignRegistrationResponse register(
@@ -79,7 +86,12 @@ public class CampaignRegistrationTransactionService {
         User createdBy = userRepository.findById(requesterId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
+        LocalDate today = LocalDate.now(clock.withZone(KST));
+        CampaignStatus initialStatus = CampaignStatusReconciliationService.statusFor(
+                command.executionStartDate(), command.executionEndDate(), today
+        );
         Campaign campaign = Campaign.builder()
+
                 .team(team)
                 .mediaUnit(mediaUnit)
                 .createdBy(createdBy)
@@ -92,7 +104,7 @@ public class CampaignRegistrationTransactionService {
                 .creativeType(command.creativeType())
                 .creativeStorageKey(command.creativeStorageKey())
                 .creativeOriginalFilename(command.creativeOriginalFilename())
-                .status(CampaignStatus.REGISTERED)
+                .status(initialStatus)
                 .build();
         campaignRepository.save(campaign);
 
