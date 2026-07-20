@@ -26,9 +26,8 @@ import java.util.stream.Stream;
  * 홈 대시보드의 "캠페인 목록 조회" / "캠페인 상세정보 조회" API를 처리하는 서비스.
  *
  * 캠페인 status는 DB에 저장된 값을 그대로 신뢰하고 응답한다 (오늘 날짜와 비교해서 재계산하지 않는다).
- * REGISTERED -> BEFORE_EXECUTION/IN_EXECUTION/AFTER_EXECUTION로 전환되는 로직(스케줄러인지,
- * 등록 완료 시점에 바로 결정되는지 등)은 아직 이 코드베이스 어디에도 없다 - 캠페인 등록 플로우를
- * 만들 때 그 전환 로직도 같이 설계해야 한다. 지금은 "이미 올바른 status로 저장돼 있다"고 가정한다.
+ * REGISTERED -> BEFORE_EXECUTION/IN_EXECUTION/AFTER_EXECUTION 전환은 CampaignStatusScheduler가
+ * 1분마다 보정한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -40,10 +39,13 @@ public class DashboardCampaignQueryService {
     /**
      * 캠페인 목록 조회. 흐름:
      * 1. 이 사용자가 ACTIVE로 속한 팀 ID들을 구한다 (한 명이 여러 팀에 속할 수 있음)
-     * 2. 그 팀들이 가진 캠페인을 전부 가져온다 (keyword/status 필터 적용 전 전체 목록)
-     * 3. 필터 적용 전 전체 목록을 기준으로 "기본 선택 캠페인"을 하나 정한다
-     *    (필터링된 결과만 보고 기본 선택을 정하면, 필터 때문에 원래 기본 선택 캠페인이
-     *    빠져있는데도 다른 캠페인이 엉뚱하게 기본 선택으로 잡히는 문제가 생길 수 있어서다)
+     * 2. 그 팀들이 가진 캠페인 중 IN_EXECUTION/AFTER_EXECUTION만 가져온다 - 집행 전
+     *    (REGISTRATION_FAILED/REGISTERED/BEFORE_EXECUTION)은 이 목록에 아예 나타나지 않는다
+     *    (keyword/status 필터 적용 전, "보여줄 수 있는" 기본 후보 목록)
+     * 3. 그 기본 후보 목록을 기준으로 "기본 선택 캠페인"을 하나 정한다
+     *    (keyword/status 필터까지 적용한 결과만 보고 기본 선택을 정하면, 필터 때문에
+     *    원래 기본 선택 캠페인이 빠져있는데도 다른 캠페인이 엉뚱하게 기본 선택으로 잡히는
+     *    문제가 생길 수 있어서다)
      * 4. keyword(캠페인명 포함 검색, 대소문자 무시) / status 필터를 적용하고 최신순으로 정렬해서 응답
      */
     @Transactional(readOnly = true)
@@ -54,7 +56,9 @@ public class DashboardCampaignQueryService {
             return DashboardCampaignListResponse.from(List.of());
         }
 
-        List<Campaign> campaigns = campaignRepository.findByTeamIdIn(teamIds);
+        List<Campaign> campaigns = campaignRepository.findByTeamIdIn(teamIds).stream()
+                .filter(c -> c.getStatus() == CampaignStatus.IN_EXECUTION || c.getStatus() == CampaignStatus.AFTER_EXECUTION)
+                .toList();
         Long defaultCampaignId = resolveDefaultCampaign(campaigns).map(Campaign::getId).orElse(null);
 
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim().toLowerCase();
@@ -103,19 +107,15 @@ public class DashboardCampaignQueryService {
     }
 
     /**
-     * 스펙 2절 "기본 선택 규칙" 우선순위 그대로 구현.
+     * 스펙 2절 "기본 선택 규칙" 우선순위 그대로 구현. campaigns는 이미 IN_EXECUTION/
+     * AFTER_EXECUTION만 남은 목록이라 이 두 상태만 고려하면 된다.
      * 우선순위가 높은 상태부터 순서대로 확인하고, 그 상태의 캠페인이 하나도 없으면 다음 순위로 넘어간다(.or 체이닝).
-     * 각 우선순위 안에서 여러 건이 있을 때 무엇을 고를지:
      * - IN_EXECUTION: 스펙에 명시 안 됨 -> 가장 최근에 생성된 캠페인으로 임의 선택
-     * - BEFORE_EXECUTION: "오늘 이후 가장 먼저 시작하는 캠페인" (스펙에 명시) -> executionStartDate가 가장 이른 것
-     * - REGISTERED: "가장 최근 등록완료된 캠페인" (스펙에 명시) -> createdAt이 가장 늦은(최신) 것
      * - AFTER_EXECUTION: "가장 최근 종료된 캠페인" (스펙에 명시) -> executionEndDate가 가장 늦은 것
-     * - 위 4개 상태가 하나도 없으면(전부 REGISTRATION_FAILED인 경우 등): 가장 최근 생성된 캠페인
+     * - 마지막 fallback은 이론상 도달할 일이 없다(campaigns가 비어있지 않은 한) - 방어적으로만 남겨둔다.
      */
     private Optional<Campaign> resolveDefaultCampaign(List<Campaign> campaigns) {
         return byStatus(campaigns, CampaignStatus.IN_EXECUTION).max(Comparator.comparing(Campaign::getCreatedAt))
-                .or(() -> byStatus(campaigns, CampaignStatus.BEFORE_EXECUTION).min(Comparator.comparing(Campaign::getExecutionStartDate)))
-                .or(() -> byStatus(campaigns, CampaignStatus.REGISTERED).max(Comparator.comparing(Campaign::getCreatedAt)))
                 .or(() -> byStatus(campaigns, CampaignStatus.AFTER_EXECUTION).max(Comparator.comparing(Campaign::getExecutionEndDate)))
                 .or(() -> campaigns.stream().max(Comparator.comparing(Campaign::getCreatedAt)));
     }

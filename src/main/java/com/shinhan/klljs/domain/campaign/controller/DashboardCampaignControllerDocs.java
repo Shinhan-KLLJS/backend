@@ -43,28 +43,31 @@ public interface DashboardCampaignControllerDocs {
 
                     ### 동작 방식
                     - 요청한 사용자가 **`ACTIVE` 상태로 속한 모든 팀**의 캠페인을 모아서 반환한다 (여러 팀에 속해 있으면 전부 합쳐서 나온다).
-                    - 어느 팀에도 속해 있지 않으면 에러가 아니라 **빈 배열**(`campaigns: []`)을 반환한다.
+                    - **`IN_EXECUTION`(집행 중) / `AFTER_EXECUTION`(집행 후) 캠페인만 나타난다.** `REGISTRATION_FAILED`
+                      (등록 실패) / `REGISTERED`(등록 완료, 집행 상태 전환 대기) / `BEFORE_EXECUTION`(집행 전)은
+                      이 목록에 아예 노출되지 않는다.
+                    - 어느 팀에도 속해 있지 않거나, 위 두 상태의 캠페인이 하나도 없으면 에러가 아니라
+                      **빈 배열**(`campaigns: []`)을 반환한다.
                     - `keyword`가 있으면 `campaignName`에 **대소문자 무시 부분일치**로 필터링한다.
-                    - `status`가 있으면 정확히 일치하는 상태의 캠페인만 필터링한다.
-                    - 필터와 무관하게, **필터 적용 전 전체 목록** 기준으로 `isDefaultSelected`(기본 선택 캠페인)를 하나 정한다.
-                      필터 때문에 원래 기본 선택 캠페인이 결과 목록에서 빠지더라도 다른 캠페인이 엉뚱하게
-                      기본 선택으로 잡히는 문제를 막기 위해서다. 즉 필터링된 목록에는 `isDefaultSelected: true`인
-                      캠페인이 아예 없을 수도 있다.
+                    - `status`가 있으면 정확히 일치하는 상태의 캠페인만 필터링한다 (`IN_EXECUTION`/`AFTER_EXECUTION`
+                      외의 값을 넘기면 항상 빈 배열).
+                    - `keyword`/`status` 필터와 무관하게, **필터 적용 전 노출 대상 전체(IN_EXECUTION/AFTER_EXECUTION)**
+                      기준으로 `isDefaultSelected`(기본 선택 캠페인)를 하나 정한다. 필터 때문에 원래 기본 선택
+                      캠페인이 결과 목록에서 빠지더라도 다른 캠페인이 엉뚱하게 기본 선택으로 잡히는 문제를
+                      막기 위해서다. 즉 필터링된 목록에는 `isDefaultSelected: true`인 캠페인이 아예 없을 수도 있다.
 
                     ### `isDefaultSelected` 우선순위
                     아래 순서대로 확인해서, 그 상태의 캠페인이 하나라도 있으면 즉시 확정한다 (동순위 내 기준도 함께 표기).
                     1. `IN_EXECUTION` 중 **가장 최근에 생성된** 캠페인
-                    2. `BEFORE_EXECUTION` 중 **집행 시작일이 가장 이른** 캠페인
-                    3. `REGISTERED` 중 **가장 최근에 등록완료된** 캠페인
-                    4. `AFTER_EXECUTION` 중 **집행 종료일이 가장 늦은** 캠페인
-                    5. 위 4개 상태가 전부 없으면(예: 전부 `REGISTRATION_FAILED`) **가장 최근에 생성된** 캠페인
+                    2. `AFTER_EXECUTION` 중 **집행 종료일이 가장 늦은** 캠페인
+                    3. 위 두 상태가 전부 없으면(= 목록이 비어있으면) 기본 선택 캠페인도 없음
 
                     ### 정렬
                     응답 목록은 항상 **생성일(createdAt) 최신순**으로 정렬된다.
 
                     ### 캠페인 상태값(`status`)
-                    `REGISTRATION_FAILED`(등록 실패) / `REGISTERED`(등록 완료) / `BEFORE_EXECUTION`(집행 전) /
-                    `IN_EXECUTION`(집행 중) / `AFTER_EXECUTION`(집행 후) 중 하나. `DRAFT`(임시저장)는 존재하지 않는다.
+                    응답에는 `IN_EXECUTION`(집행 중) / `AFTER_EXECUTION`(집행 후)만 나타난다. `REGISTRATION_FAILED`/
+                    `REGISTERED`/`BEFORE_EXECUTION`은 이 목록 자체에서 제외되므로 응답에 등장하지 않는다.
                     """
     )
     @ApiResponses({
