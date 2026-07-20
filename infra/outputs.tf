@@ -23,6 +23,11 @@ output "ec2_private_ip" {
   value       = module.ec2.private_ip
 }
 
+output "app_log_group_name" {
+  description = "앱 컨테이너 로그가 쌓이는 CloudWatch Log Group (cd.yml의 docker run --log-opt awslogs-group과 반드시 같은 값이어야 함)"
+  value       = module.ec2.log_group_name
+}
+
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id

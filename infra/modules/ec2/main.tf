@@ -35,6 +35,20 @@ resource "aws_security_group" "ec2" {
   }
 }
 
+# ──────────────── CloudWatch Log Group (앱 컨테이너 로그) ────────────────
+# 배포 스크립트(cd.yml)가 docker run에 --log-driver=awslogs로 이 그룹을 지정한다.
+# CD가 컨테이너를 stop/rm하고 새로 띄우는 구조라, 로그를 컨테이너 자체에만 두면 다음 배포 때
+# 이전 컨테이너의 로그(장애 당시 로그 포함)가 통째로 사라진다 - 실제로 이 문제로 배포 직후
+# 발생한 5xx의 원인을 확인하지 못한 사고가 있었다.
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/${var.project_name}/app"
+  retention_in_days = 14
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
 # ──────────────── IAM Role (EC2 → SQS, CloudWatch 권한) ────────────────
 resource "aws_iam_role" "ec2" {
   name = "${var.project_name}-ec2-role"
