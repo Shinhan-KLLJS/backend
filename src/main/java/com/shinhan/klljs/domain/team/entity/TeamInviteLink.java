@@ -44,7 +44,12 @@ public class TeamInviteLink {
     @JoinColumn(name = "created_by_user_id", nullable = false)
     private User createdBy;
 
-    @Column(name = "invite_code", nullable = false, unique = true, length = 7)
+    /**
+     * DB 컬럼 자체는 NULL을 허용한다 - 해시 저장 방식(V11 이전)에서 넘어온 기존 행은
+     * 원본 코드를 복원할 방법이 없어 NULL로 남는다(V11 마이그레이션 참고).
+     * 애플리케이션이 새로 만드는 행은 builder를 통해 항상 실제 값을 채운다.
+     */
+    @Column(name = "invite_code", unique = true, length = 7)
     private String inviteCode;
 
     /** null이면 사용 횟수 무제한 */
