@@ -35,7 +35,9 @@ public class CampaignStatusReconciliationService {
 
         int changedCount = 0;
         for (Campaign campaign : campaigns) {
-            CampaignStatus expectedStatus = statusFor(campaign, today);
+            CampaignStatus expectedStatus = statusFor(
+                    campaign.getExecutionStartDate(), campaign.getExecutionEndDate(), today
+            );
             if (campaign.getStatus() != expectedStatus) {
                 campaign.changeStatus(expectedStatus);
                 changedCount++;
@@ -45,11 +47,11 @@ public class CampaignStatusReconciliationService {
     }
 
     /** 양 끝 날짜를 모두 집행 중으로 포함한다. */
-    CampaignStatus statusFor(Campaign campaign, LocalDate today) {
-        if (today.isBefore(campaign.getExecutionStartDate())) {
+    static CampaignStatus statusFor(LocalDate executionStartDate, LocalDate executionEndDate, LocalDate today) {
+        if (today.isBefore(executionStartDate)) {
             return CampaignStatus.BEFORE_EXECUTION;
         }
-        if (today.isAfter(campaign.getExecutionEndDate())) {
+        if (today.isAfter(executionEndDate)) {
             return CampaignStatus.AFTER_EXECUTION;
         }
         return CampaignStatus.IN_EXECUTION;

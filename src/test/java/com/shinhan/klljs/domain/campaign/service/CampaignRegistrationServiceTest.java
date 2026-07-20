@@ -27,8 +27,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +39,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest(properties = "app.local-test-data.enabled=false")
 @Transactional
 class CampaignRegistrationServiceTest {
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Autowired
     private CampaignRegistrationService service;
@@ -47,6 +51,9 @@ class CampaignRegistrationServiceTest {
     @Autowired
     private EntityManager entityManager;
 
+
+    @Autowired
+    private Clock clock;
     @Test
     void register_storesVerifiedCreativeAndSelectedMedia() {
         Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
@@ -57,7 +64,8 @@ class CampaignRegistrationServiceTest {
         entityManager.flush();
 
         Campaign campaign = entityManager.find(Campaign.class, response.campaignId());
-        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.REGISTERED);
+        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.IN_EXECUTION);
+        assertThat(response.status()).isEqualTo(CampaignStatus.IN_EXECUTION);
         assertThat(campaign.getCampaignName()).isEqualTo("여름 캠페인");
         assertThat(campaign.getMediaUnit().getId()).isEqualTo(fixture.mediaUnit().getId());
         assertThat(campaign.getCreativeType()).isEqualTo(CampaignCreativeType.IMAGE);
@@ -76,7 +84,49 @@ class CampaignRegistrationServiceTest {
         entityManager.flush();
 
         Campaign campaign = entityManager.find(Campaign.class, response.campaignId());
-        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.REGISTERED);
+        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.IN_EXECUTION);
+    }
+
+    @Test
+    void register_storesInExecutionWhenPeriodStartedBeforeToday() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        LocalDate today = todayKst();
+
+        CampaignRegistrationResponse response = service.register(
+                fixture.user().getId(), fixture.team().getId(),
+                validRequest(fixture, today.minusDays(1), today.plusDays(1))
+        );
+        entityManager.flush();
+
+        assertThat(response.status()).isEqualTo(CampaignStatus.IN_EXECUTION);
+    }
+
+    @Test
+    void register_storesBeforeExecutionWhenPeriodStartsAfterToday() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        LocalDate today = todayKst();
+
+        CampaignRegistrationResponse response = service.register(
+                fixture.user().getId(), fixture.team().getId(),
+                validRequest(fixture, today.plusDays(1), today.plusDays(2))
+        );
+        entityManager.flush();
+
+        assertThat(response.status()).isEqualTo(CampaignStatus.BEFORE_EXECUTION);
+    }
+
+    @Test
+    void register_storesAfterExecutionWhenPeriodEndedBeforeToday() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER, MediaUnitStatus.ACTIVE);
+        LocalDate today = todayKst();
+
+        CampaignRegistrationResponse response = service.register(
+                fixture.user().getId(), fixture.team().getId(),
+                validRequest(fixture, today.minusDays(2), today.minusDays(1))
+        );
+        entityManager.flush();
+
+        assertThat(response.status()).isEqualTo(CampaignStatus.AFTER_EXECUTION);
     }
 
     @Test
@@ -112,7 +162,8 @@ class CampaignRegistrationServiceTest {
     @Test
     void register_rejectsOverlappingCampaignIncludingBoundaryDate() {
         Fixture fixture = persistFixture(TeamMemberRole.ADMIN, MediaUnitStatus.ACTIVE);
-        persistCampaign(fixture, LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 11));
+        LocalDate today = todayKst();
+        persistCampaign(fixture, today.minusDays(1), today);
         entityManager.flush();
 
         assertThatThrownBy(() -> service.register(
@@ -224,6 +275,19 @@ class CampaignRegistrationServiceTest {
         ).token();
         return requestWithToken(fixture, token);
     }
+    private CampaignRegistrationRequest validRequest(Fixture fixture, LocalDate startDate, LocalDate endDate) {
+        String token = creativeTokenService.issue(
+                fixture.user().getId(),
+                CampaignCreativeType.IMAGE,
+                "campaign-creatives/" + fixture.user().getId() + "/test-object-" + System.nanoTime(),
+                "poster.png"
+        ).token();
+        return new CampaignRegistrationRequest(
+                token, "campaign", "brand", startDate.toString(), endDate.toString(), 100, null,
+                fixture.mediaUnit().getId()
+        );
+    }
+
 
     private CampaignRegistrationRequest validRequest(
             Fixture fixture, String campaignName, String brandName, Integer dailyTargetPlayCount, String description
@@ -234,24 +298,30 @@ class CampaignRegistrationServiceTest {
                 "campaign-creatives/" + fixture.user().getId() + "/test-object-" + System.nanoTime(),
                 "poster.png"
         ).token();
+        LocalDate today = todayKst();
         return new CampaignRegistrationRequest(
-                token, campaignName, brandName, "2026-07-11", "2026-07-12", dailyTargetPlayCount, description,
+                token, campaignName, brandName, today.toString(), today.plusDays(1).toString(), dailyTargetPlayCount, description,
                 fixture.mediaUnit().getId()
         );
     }
 
     private CampaignRegistrationRequest requestWithToken(Fixture fixture, String token) {
+        LocalDate today = todayKst();
         return new CampaignRegistrationRequest(
                 token,
                 "  여름 캠페인  ",
                 "  브랜드 A  ",
-                "2026-07-11",
-                "2026-07-12",
+                today.toString(),
+                today.plusDays(1).toString(),
                 100,
                 "   ",
                 fixture.mediaUnit().getId()
         );
     }
+    private LocalDate todayKst() {
+        return LocalDate.now(clock.withZone(KST));
+    }
+
 
     private Fixture persistFixture(TeamMemberRole role, MediaUnitStatus mediaStatus) {
         return persistFixture(role, mediaStatus, TeamStatus.ACTIVE, true);
