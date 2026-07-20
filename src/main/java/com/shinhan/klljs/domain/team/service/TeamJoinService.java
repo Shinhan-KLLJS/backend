@@ -15,7 +15,6 @@ import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.exception.UserErrorCode;
 import com.shinhan.klljs.domain.user.repository.UserRepository;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
-import com.shinhan.klljs.global.util.TokenHasher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +64,7 @@ public class TeamJoinService {
     }
 
     private TeamInviteLink findInviteByCode(String normalizedCode) {
-        return teamInviteLinkRepository.findByTokenHash(TokenHasher.sha256(normalizedCode))
+        return teamInviteLinkRepository.findByInviteCode(normalizedCode)
                 .orElseThrow(this::invalidInvite);
     }
 

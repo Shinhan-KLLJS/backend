@@ -13,7 +13,6 @@ import com.shinhan.klljs.domain.team.repository.TeamMemberRepository;
 import com.shinhan.klljs.domain.user.entity.User;
 import com.shinhan.klljs.domain.user.entity.UserStatus;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
-import com.shinhan.klljs.global.util.TokenHasher;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,7 +136,7 @@ class TeamJoinServiceTest {
         TeamInviteLink invite = TeamInviteLink.builder()
                 .team(team)
                 .createdBy(inviter)
-                .tokenHash(TokenHasher.sha256(code))
+                .inviteCode(code)
                 .maxUses(null)
                 .expiresAt(expiresAt)
                 .build();

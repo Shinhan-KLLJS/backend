@@ -149,7 +149,8 @@ public interface TeamCampaignControllerDocs {
                     `campaign_id`만 `NULL`로 바뀌고 그대로 남는다.
 
                     ### 접근 권한
-                    캠페인 등록과 동일한 기준 - 팀의 `ACTIVE` `OWNER`/`ADMIN`만 가능하다. `MEMBER`는 403.
+                    팀의 `ACTIVE` `OWNER`/`ADMIN`만 가능하다 (캠페인 등록은 `MEMBER`도 가능하지만,
+                    삭제는 별도 기준으로 `MEMBER`는 403).
                     """
     )
     @ApiResponses({

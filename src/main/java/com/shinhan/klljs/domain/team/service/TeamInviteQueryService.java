@@ -4,7 +4,6 @@ import com.shinhan.klljs.domain.team.entity.TeamInviteLink;
 import com.shinhan.klljs.domain.team.exception.TeamErrorCode;
 import com.shinhan.klljs.domain.team.repository.TeamInviteLinkRepository;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
-import com.shinhan.klljs.global.util.TokenHasher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,9 +24,7 @@ public class TeamInviteQueryService {
 
     @Transactional(readOnly = true)
     public Long validateAndGetId(String inviteToken) {
-        byte[] tokenHash = TokenHasher.sha256(inviteToken);
-
-        TeamInviteLink invite = teamInviteLinkRepository.findByTokenHash(tokenHash)
+        TeamInviteLink invite = teamInviteLinkRepository.findByInviteCode(inviteToken)
                 .orElseThrow(() -> new GeneralException(TeamErrorCode.INVALID_INVITE));
 
         if (!invite.isUsable(LocalDateTime.now(clock))) {

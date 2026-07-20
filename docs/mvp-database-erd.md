@@ -6,7 +6,7 @@
 
 - 사용자는 카카오 소셜 로그인으로 가입한다.
 - 팀장은 팀과 사업자등록증을 등록한다.
-- 팀장(또는 어드민)은 초대 코드를 생성하고 팀원을 초대한다.
+- 팀원 누구나 초대 코드를 생성하고 팀원을 초대할 수 있다.
 - 팀원은 자신이 속한 팀의 캠페인과 대시보드를 조회한다.
 - 캠페인 하나는 하나의 매체에만 배정한다.
 - 하나의 매체는 기간이 겹치지 않는 여러 캠페인에서 재사용할 수 있다.
@@ -21,7 +21,7 @@
 3. MVP에서는 `AD_PLACEMENTS`와 `VISION_DEVICES` 테이블을 사용하지 않는다.
 4. Vision 데이터에는 수신 시점에 결정한 `campaign_id`를 저장해 과거 귀속 관계를 보존한다.
 5. 사업자등록증은 공개 URL 대신 비공개 오브젝트 스토리지 키를 저장한다.
-6. 초대 코드의 원본 값은 저장하지 않고 SHA-256 해시만 저장하며, 팀당 폐기되지 않은 코드는 항상 1개만 존재한다.
+6. 초대 코드는 평문으로 저장한다 (MVP 단계 단순화 - 보안보다 단순성 우선). 팀당 폐기되지 않은 코드는 항상 1개만 존재한다.
 7. 팀당 활성 `OWNER`는 애플리케이션 검증만이 아니라 DB 유니크 인덱스로 강제한다.
 8. 하드 삭제는 사용하지 않는다. 모든 테이블은 `status` 컬럼으로 소프트 삭제/비활성화한다.
 
@@ -101,7 +101,7 @@ erDiagram
         bigint id PK
         bigint team_id FK
         bigint created_by_user_id FK
-        binary token_hash UK
+        varchar invite_code UK
         int max_uses
         int used_count
         datetime expires_at
@@ -286,7 +286,7 @@ CREATE UNIQUE INDEX ux_team_members_one_active_owner ON team_members(active_owne
 |---|---|
 | `OWNER` | 사업자등록증, 팀 설정, 초대, 캠페인 관리 및 조회 |
 | `ADMIN` | 초대, 캠페인 관리 및 조회 |
-| `MEMBER` | 캠페인과 대시보드 조회 |
+| `MEMBER` | 초대, 캠페인 등록 및 조회 (삭제는 OWNER/ADMIN만) |
 
 팀 생성 시 아래 두 작업은 하나의 트랜잭션으로 처리한다.
 
@@ -339,7 +339,7 @@ media_unit_region_columns·`V7` campaign_registration_schema와의 번호 충돌
 | `id` | `BIGINT UNSIGNED` | O | PK |
 | `team_id` | `BIGINT UNSIGNED` | O | 초대 대상 팀 |
 | `created_by_user_id` | `BIGINT UNSIGNED` | O | 초대 코드 생성자 (OWNER 또는 ADMIN) |
-| `token_hash` | `BINARY(32)` | O | 초대 코드의 SHA-256 해시, `UNIQUE`. 코드 길이가 짧아져도 해시 출력은 항상 32바이트라 컬럼 변경 불필요 |
+| `invite_code` | `VARCHAR(7)` | O | 초대 코드 원본 값, `UNIQUE` (MVP 단계 단순화로 평문 저장 - issue 참고) |
 | `max_uses` | `INT UNSIGNED` | X | `NULL` = 사용 횟수 무제한 (팀원 수 제한 없음 요구사항 반영) |
 | `used_count` | `INT UNSIGNED` | O | 현재 사용 횟수 |
 | `expires_at` | `DATETIME(3)` | O | 만료 시각 (발급 시점 + 24시간) |
@@ -364,8 +364,8 @@ CREATE UNIQUE INDEX uk_invite_one_active_code_per_team ON team_invite_links(acti
 초대 처리 흐름:
 
 1. 사용자가 "팀 참가" 화면에서 초대 코드를 입력한다.
-2. 서버가 입력값을 SHA-256으로 해시해 `token_hash`를 조회한다.
-3. 코드가 없거나(`token_hash` 불일치) 만료됐으면(`expires_at` 경과) **동일하게 "유효하지 않은 초대"로 안내**한다 (사유를 구분해서 노출하지 않음).
+2. 서버가 입력값으로 `invite_code`를 조회한다.
+3. 코드가 없거나(`invite_code` 불일치) 만료됐으면(`expires_at` 경과) **동일하게 "유효하지 않은 초대"로 안내**한다 (사유를 구분해서 노출하지 않음).
 4. 로그인하지 않은 사용자는 카카오 OAuth로 이동한다.
 5. 트랜잭션에서 초대 코드를 `SELECT ... FOR UPDATE`로 잠근다.
 6. `team_members`를 **role = MEMBER**로 생성하고 `used_count`를 증가시킨다. 이미 그 팀에 있었다가 나간/강퇴된 사용자라면 기존 행을 UPDATE(재가입)한다.
@@ -639,8 +639,8 @@ attention_count
 ### 팀원 초대
 
 ```text
-OWNER 또는 ADMIN이 초대 코드 생성
-→ 기존 활성 코드가 있으면 먼저 revoke, team_invite_links에 새 코드 해시 저장
+팀원(OWNER/ADMIN/MEMBER 누구나)이 초대 코드 생성
+→ 기존 활성 코드가 있으면 먼저 revoke, team_invite_links에 새 코드 저장(평문)
 → 팀원이 초대 코드 입력
 → 카카오 로그인
 → team_members를 role=MEMBER로 생성 (또는 재가입 시 기존 행 UPDATE)

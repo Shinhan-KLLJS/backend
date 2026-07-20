@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public interface TeamInviteLinkRepository extends JpaRepository<TeamInviteLink, Long> {
 
-    Optional<TeamInviteLink> findByTokenHash(byte[] tokenHash);
+    Optional<TeamInviteLink> findByInviteCode(String inviteCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select invite from TeamInviteLink invite where invite.id = :inviteId")

@@ -12,7 +12,6 @@ import com.shinhan.klljs.domain.media.exception.MediaErrorCode;
 import com.shinhan.klljs.domain.media.repository.MediaUnitRepository;
 import com.shinhan.klljs.domain.team.entity.Team;
 import com.shinhan.klljs.domain.team.entity.TeamMember;
-import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
 import com.shinhan.klljs.domain.team.entity.TeamMemberStatus;
 import com.shinhan.klljs.domain.team.entity.TeamStatus;
 import com.shinhan.klljs.domain.team.exception.TeamErrorCode;
@@ -52,16 +51,12 @@ public class CampaignRegistrationTransactionService {
         Team team = teamRepository.findByIdForUpdate(teamId)
                 .orElseThrow(() -> new GeneralException(TeamErrorCode.TEAM_NOT_FOUND));
 
-        TeamMember requester = teamMemberRepository.findByUserIdAndTeamIdAndStatus(
-                        requesterId, teamId, TeamMemberStatus.ACTIVE
-                )
+        // MEMBER를 포함한 모든 ACTIVE 멤버가 캠페인을 등록할 수 있다 - 역할 제한 없음.
+        teamMemberRepository.findByUserIdAndTeamIdAndStatus(requesterId, teamId, TeamMemberStatus.ACTIVE)
                 .orElseThrow(() -> new GeneralException(TeamErrorCode.TEAM_ACCESS_DENIED));
         // 비회원에게 팀의 비활성 상태를 먼저 노출하지 않는다. ACTIVE 멤버만 팀 상태를 확인할 수 있다.
         if (team.getStatus() != TeamStatus.ACTIVE) {
             throw new GeneralException(TeamErrorCode.TEAM_NOT_ACTIVE);
-        }
-        if (requester.getRole() == TeamMemberRole.MEMBER) {
-            throw new GeneralException(TeamErrorCode.CAMPAIGN_MANAGEMENT_FORBIDDEN);
         }
 
         // 팀 검증이 끝난 뒤에만 매체를 잠가 모든 등록 경로의 lock order를 동일하게 유지한다.
