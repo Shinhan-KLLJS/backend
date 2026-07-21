@@ -129,9 +129,12 @@ class TeamMemberManagementServiceTest {
         entityManager.flush();
 
         TeamRenameResponse response = service.renameTeam(owner.getUser().getId(), team.getId(), "  공백 팀명  ");
+        entityManager.flush();
+        entityManager.clear();
 
         assertThat(response.teamName()).isEqualTo("공백 팀명");
-        assertThat(team.getTeamName()).isEqualTo("공백 팀명");
+        // 영속성 컨텍스트를 비우고 다시 조회해서, 메모리상 엔티티 상태가 아니라 실제 DB 반영 여부를 확인한다.
+        assertThat(entityManager.find(Team.class, team.getId()).getTeamName()).isEqualTo("공백 팀명");
     }
 
     @Test
