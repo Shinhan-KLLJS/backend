@@ -184,9 +184,24 @@ docker rm -f klljs-mysql-test
 
 ## DB 마이그레이션
 
-운영 DB 스키마는 `src/main/resources/db/migration`의 Flyway 마이그레이션(V1~V12)으로 관리하고,
+운영 DB 스키마는 `src/main/resources/db/migration`의 Flyway 마이그레이션(V1~V13)으로 관리하고,
 애플리케이션은 `ddl-auto=validate`로 스키마와의 불일치만 검증할 뿐 직접 바꾸지 않는다. 로컬은
 반대로 Flyway 없이 Hibernate `ddl-auto=create-drop`으로 매번 새로 만든다.
+
+**검증은 반드시 실제 MySQL로 한다** — 로컬 프로필은 Flyway 자체를 안 타고, H2는 잠금/제약
+동작이 MySQL과 달라 Flyway·FK·동시성 관련 버그를 못 잡는다. 새 마이그레이션을 추가하면
+`mysql:8.0.46` Docker 컨테이너에 `V1`부터 전체 이력을 처음부터 적용해보고 통과하는지 확인할 것
+(신규 스테이징 환경, MySQL 기반 로컬 셋업, 마이그레이션만으로 하는 DR 복구가 모두 이 경로를
+탄다 - `V12__recreate_vision_summary_5s.sql`가 한동안 이 경로에서 "Table already exists"로
+막혀 있었던 사례가 있다).
+
+**이미 운영에 적용된 마이그레이션 파일은 원칙적으로 수정하지 않는다.** 불가피하게 수정하면
+(예: `V12`처럼 사고 복구용으로 작성된 마이그레이션을 신규 환경에서도 안전하게 만들 때)
+파일 내용이 바뀌어 checksum이 바뀌므로, 그 버전이 이미 적용된 환경(운영)에서는 다음 배포 시
+Flyway validate가 checksum mismatch로 실패해 앱이 기동하지 않는다. 이런 수정을 배포하기 전에는
+운영 DB에 대해 먼저 `flyway repair`(또는 동등하게 `flyway_schema_history`의 해당 버전 checksum을
+새 파일 기준으로 수동 갱신)를 실행해야 한다 - repair는 메타데이터만 갱신하고 SQL을 실행하지
+않으므로 운영 스키마 자체에는 영향이 없다.
 
 ---
 
