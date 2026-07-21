@@ -46,7 +46,9 @@ class MediaUnitQueryServiceTest {
                 "서울특별시",
                 "강남구",
                 LocalDate.of(2026, 7, 12),
-                LocalDate.of(2026, 7, 13)
+                LocalDate.of(2026, 7, 13),
+                null,
+                null
         );
 
         assertThat(response.mediaUnits()).singleElement().satisfies(media -> {
@@ -54,6 +56,57 @@ class MediaUnitQueryServiceTest {
             assertThat(media.available()).isFalse();
             assertThat(media.unavailableReason()).isEqualTo("PERIOD_CONFLICT");
         });
+        assertThat(response.hasMore()).isFalse();
+    }
+
+    @Test
+    void getMediaUnits_defaultsToFirstTenAndReportsHasMore() {
+        // media_name 오름차순 정렬이라 "매체 01".."매체 12"는 그 순서 그대로 정렬된다.
+        for (int i = 1; i <= 12; i++) {
+            persistMedia("매체 %02d".formatted(i), "서울특별시", "강남구");
+        }
+        entityManager.flush();
+
+        MediaUnitListResponse response = service.getMediaUnits(
+                null, null, null, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 2), null, null
+        );
+
+        assertThat(response.mediaUnits()).hasSize(10);
+        assertThat(response.mediaUnits().get(0).mediaName()).isEqualTo("매체 01");
+        assertThat(response.mediaUnits().get(9).mediaName()).isEqualTo("매체 10");
+        assertThat(response.hasMore()).isTrue();
+    }
+
+    @Test
+    void getMediaUnits_secondPageWithOffsetReturnsRemainingItemsAndHasMoreFalse() {
+        for (int i = 1; i <= 12; i++) {
+            persistMedia("매체 %02d".formatted(i), "서울특별시", "강남구");
+        }
+        entityManager.flush();
+
+        MediaUnitListResponse response = service.getMediaUnits(
+                null, null, null, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 2), 10, 6
+        );
+
+        assertThat(response.mediaUnits()).hasSize(2);
+        assertThat(response.mediaUnits().get(0).mediaName()).isEqualTo("매체 11");
+        assertThat(response.mediaUnits().get(1).mediaName()).isEqualTo("매체 12");
+        assertThat(response.hasMore()).isFalse();
+    }
+
+    @Test
+    void getMediaUnits_limitAboveMaxIsClampedTo50() {
+        for (int i = 1; i <= 60; i++) {
+            persistMedia("매체 %02d".formatted(i), "서울특별시", "강남구");
+        }
+        entityManager.flush();
+
+        MediaUnitListResponse response = service.getMediaUnits(
+                null, null, null, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 2), null, 1000
+        );
+
+        assertThat(response.mediaUnits()).hasSize(50);
+        assertThat(response.hasMore()).isTrue();
     }
 
     @Test
