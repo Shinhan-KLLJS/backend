@@ -18,6 +18,7 @@ public enum TeamErrorCode implements BaseErrorCode {
             "TEAM_403_003",
             "캠페인을 등록하거나 삭제할 권한이 없습니다."
     ),
+    TEAM_SETTINGS_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_004", "팀 설정을 변경할 권한이 없습니다."),
 
     TEAM_NOT_FOUND(HttpStatus.NOT_FOUND, "TEAM_404_001", "팀을 찾을 수 없습니다."),
     TEAM_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "TEAM_404_002", "활성 팀원을 찾을 수 없습니다."),

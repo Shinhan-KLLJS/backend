@@ -2,6 +2,7 @@ package com.shinhan.klljs.domain.team.service;
 
 import com.shinhan.klljs.domain.team.dto.TeamMemberListResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberRoleChangeResponse;
+import com.shinhan.klljs.domain.team.dto.TeamRenameResponse;
 import com.shinhan.klljs.domain.team.entity.Team;
 import com.shinhan.klljs.domain.team.entity.TeamMember;
 import com.shinhan.klljs.domain.team.entity.TeamMemberRole;
@@ -97,6 +98,31 @@ class TeamMemberManagementServiceTest {
     }
 
     @Test
+    void renameTeam_allowsOwnerAndAdminButRejectsMember() {
+        Team team = persistTeam(TeamStatus.ACTIVE);
+        TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
+        TeamMember admin = persistMember(team, "관리자", "admin@example.com", TeamMemberRole.ADMIN, TeamMemberStatus.ACTIVE);
+        TeamMember member = persistMember(team, "멤버", "member@example.com", TeamMemberRole.MEMBER, TeamMemberStatus.ACTIVE);
+        entityManager.flush();
+
+        TeamRenameResponse response = service.renameTeam(owner.getUser().getId(), team.getId(), "새 팀명");
+        entityManager.flush();
+
+        assertThat(response.teamId()).isEqualTo(team.getId());
+        assertThat(response.teamName()).isEqualTo("새 팀명");
+        assertThat(team.getTeamName()).isEqualTo("새 팀명");
+
+        service.renameTeam(admin.getUser().getId(), team.getId(), "관리자가 바꾼 팀명");
+        assertThat(team.getTeamName()).isEqualTo("관리자가 바꾼 팀명");
+
+        assertTeamError(
+                () -> service.renameTeam(member.getUser().getId(), team.getId(), "멤버가 시도한 팀명"),
+                TeamErrorCode.TEAM_SETTINGS_FORBIDDEN
+        );
+        assertThat(team.getTeamName()).isEqualTo("관리자가 바꾼 팀명");
+    }
+
+    @Test
     void removeAndLeave_changeMembershipStatuses() {
         Team team = persistTeam(TeamStatus.ACTIVE);
         TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
@@ -153,6 +179,10 @@ class TeamMemberManagementServiceTest {
 
         assertTeamError(
                 () -> service.removeMember(owner.getUser().getId(), team.getId(), target.getUser().getId()),
+                TeamErrorCode.TEAM_NOT_ACTIVE
+        );
+        assertTeamError(
+                () -> service.renameTeam(owner.getUser().getId(), team.getId(), "정지된 팀명"),
                 TeamErrorCode.TEAM_NOT_ACTIVE
         );
     }

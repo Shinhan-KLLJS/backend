@@ -3,6 +3,7 @@ package com.shinhan.klljs.domain.team.service;
 import com.shinhan.klljs.domain.team.dto.TeamMemberListResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberRoleChangeResponse;
 import com.shinhan.klljs.domain.team.dto.TeamMemberSummary;
+import com.shinhan.klljs.domain.team.dto.TeamRenameResponse;
 import com.shinhan.klljs.domain.team.dto.UpdatedTeamMember;
 import com.shinhan.klljs.domain.team.entity.Team;
 import com.shinhan.klljs.domain.team.entity.TeamMember;
@@ -58,6 +59,21 @@ public class TeamMemberManagementService {
                 .toList();
 
         return new TeamMemberListResponse(team.getId(), team.getTeamName(), summaries);
+    }
+
+    /** OWNER/ADMIN만 팀명을 바꿀 수 있다 - MEMBER는 조회만 가능하고 팀 설정은 못 건드린다. */
+    @Transactional
+    public TeamRenameResponse renameTeam(Long requesterId, Long teamId, String teamName) {
+        Team team = lockTeam(teamId);
+        TeamMember requester = requireActiveMember(requesterId, teamId);
+        requireActiveTeam(team);
+
+        if (requester.getRole() == TeamMemberRole.MEMBER) {
+            throw new GeneralException(TeamErrorCode.TEAM_SETTINGS_FORBIDDEN);
+        }
+
+        team.rename(teamName);
+        return TeamRenameResponse.of(team);
     }
 
     @Transactional
