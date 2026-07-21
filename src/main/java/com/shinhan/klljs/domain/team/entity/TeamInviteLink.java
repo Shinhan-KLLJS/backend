@@ -22,8 +22,9 @@ import java.time.LocalDateTime;
 
 /**
  * 초대 코드로 합류하면 항상 MEMBER로 합류한다 (역할 선택 없음, 승격은 팀원 관리 화면에서 별도 처리).
- * 팀당 폐기되지 않은(revoked_at IS NULL) 코드는 항상 하나만 존재한다 — 새 코드를 발급하면
- * 기존 코드를 같은 트랜잭션에서 먼저 폐기해야 한다 (activeCodeMarker 유니크 인덱스가 강제).
+ * 팀당 폐기되지 않은(revoked_at IS NULL) 코드는 항상 하나만 존재한다 — 아직 안 만료된 코드가
+ * 있으면 그대로 재사용하고, 없거나 만료된 경우에만 그 코드를 같은 트랜잭션에서 먼저 폐기한 뒤
+ * 새로 발급한다 (activeCodeMarker 유니크 인덱스가 팀당 미폐기 행 1개만 강제하므로 순서를 지켜야 한다).
  */
 @Entity
 @Table(name = "team_invite_links")

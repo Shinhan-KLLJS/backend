@@ -42,7 +42,7 @@ public interface TeamMemberControllerDocs {
             @Parameter(description = "이름 또는 이메일 검색어, 최대 100자", example = "김") String keyword
     );
 
-    @Operation(summary = "초대 코드 발급", description = "팀의 ACTIVE 멤버(OWNER/ADMIN/MEMBER 누구나)가 호출한다. 기존 활성 코드를 폐기하고 1년 유효한 새 코드를 반환한다.")
+    @Operation(summary = "초대 코드 발급", description = "팀의 ACTIVE 멤버(OWNER/ADMIN/MEMBER 누구나)가 호출한다. 아직 유효한(만료 전) 코드가 있으면 그 코드를 그대로 반환하고, 없거나 만료됐으면 새로 발급한다(유효 기간 1일). 즉 버튼을 여러 번 눌러도 코드는 유효 기간 동안 바뀌지 않는다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발급 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "미소속 또는 역할 부족 (TEAM_403_001/002)"),

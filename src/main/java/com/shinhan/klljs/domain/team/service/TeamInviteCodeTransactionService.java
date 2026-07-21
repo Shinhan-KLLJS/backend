@@ -21,10 +21,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class TeamInviteCodeTransactionService {
+
+    /**
+     * 방치된 팀이 초대 자체를 못 하게 되는 걸 막으면서도, 유출된 코드의 노출 기간을 짧게
+     * 가져가기 위한 값이다. 예전엔 1년이었지만, 버튼을 눌러도 코드가 안 바뀌는 재사용 방식으로
+     * 바뀌면서 "길게 잡아야 할 이유"가 없어져 짧게 줄였다.
+     */
+    private static final long INVITE_CODE_TTL_DAYS = 1;
 
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -45,13 +53,23 @@ public class TeamInviteCodeTransactionService {
         }
 
         LocalDateTime nowUtc = LocalDateTime.now(clock);
-        teamInviteLinkRepository.findByTeamIdAndRevokedAtIsNull(teamId).ifPresent(activeInvite -> {
-            activeInvite.revoke(nowUtc);
+        Optional<TeamInviteLink> activeInvite = teamInviteLinkRepository.findByTeamIdAndRevokedAtIsNull(teamId);
+
+        // 아직 안 만료된 코드가 있으면 그대로 재사용한다 - 버튼을 눌러도 새 코드가 안 나온다.
+        if (activeInvite.isPresent() && activeInvite.get().isUsable(nowUtc)) {
+            TeamInviteLink current = activeInvite.get();
+            return new TeamInviteCodeResponse(current.getInviteCode(), KstDateTimes.toKstOffset(current.getExpiresAt()));
+        }
+
+        // 없거나 이미 만료된 코드만 있으면, 만료된 코드부터 폐기하고 새로 발급한다
+        // (activeCodeMarker 유니크 인덱스가 팀당 미폐기 행 1개만 허용하므로 순서를 지켜야 한다).
+        activeInvite.ifPresent(expired -> {
+            expired.revoke(nowUtc);
             teamInviteLinkRepository.flush();
         });
 
         String rawCode = inviteCodeGenerator.generate();
-        LocalDateTime expiresAtUtc = nowUtc.plusYears(1);
+        LocalDateTime expiresAtUtc = nowUtc.plusDays(INVITE_CODE_TTL_DAYS);
         TeamInviteLink invite = TeamInviteLink.builder()
                 .team(team)
                 .createdBy(requester.getUser())

@@ -349,7 +349,7 @@ media_unit_region_columns·`V7` campaign_registration_schema와의 번호 충돌
 
 **팀당 활성 코드 1개 제약 (DB 레벨 강제)**
 
-새 초대 코드를 발급하면 기존에 살아있던 코드는 자동 폐기되어야 한다는 요구사항을, `team_members`의 활성 OWNER 제약과 동일한 패턴(generated column + unique index)으로 강제한다.
+한 팀에 폐기되지 않은(`revoked_at IS NULL`) 코드가 동시에 2개 이상 존재할 수 없다는 요구사항을, `team_members`의 활성 OWNER 제약과 동일한 패턴(generated column + unique index)으로 강제한다. **아직 안 만료된 활성 코드가 있으면 그 코드를 그대로 재사용**하고(폐기·재발급 없음), **없거나 만료됐을 때만** 있던 코드를 폐기하고 새로 발급한다 — "팀원 초대하기" 버튼을 여러 번 눌러도 유효 기간(발급 시점 + 24시간) 안에는 같은 코드가 나온다.
 
 ```sql
 ALTER TABLE team_invite_links
@@ -359,7 +359,7 @@ ALTER TABLE team_invite_links
 CREATE UNIQUE INDEX uk_invite_one_active_code_per_team ON team_invite_links(active_code_marker);
 ```
 
-새 코드를 발급하는 트랜잭션은 반드시 **① 기존 활성 코드에 `revoke()` 호출(`revoked_at` 설정) → ② 새 코드 INSERT** 순서로 처리해야 한다. 순서를 지키지 않으면(기존 코드를 안 지우고 새 코드부터 넣으면) 유니크 인덱스 위반으로 즉시 실패한다 — 즉 이 실수를 DB가 스스로 막아준다.
+이 제약은 `active_code_marker`가 `revoked_at`만으로 계산되고 `expires_at`은 보지 않는다는 뜻이다 — 그래서 만료됐지만 아직 폐기되지 않은 코드가 있는 상태에서 새 코드를 발급하는 트랜잭션은 반드시 **① 기존(만료된) 코드에 `revoke()` 호출(`revoked_at` 설정) → ② 새 코드 INSERT** 순서로 처리해야 한다. 순서를 지키지 않으면(기존 코드를 안 지우고 새 코드부터 넣으면) 유니크 인덱스 위반으로 즉시 실패한다 — 즉 이 실수를 DB가 스스로 막아준다. (재사용 분기를 타는 경우는 revoke도 insert도 하지 않으므로 이 제약과 아예 무관하다.)
 
 초대 처리 흐름:
 
@@ -639,8 +639,9 @@ attention_count
 ### 팀원 초대
 
 ```text
-팀원(OWNER/ADMIN/MEMBER 누구나)이 초대 코드 생성
-→ 기존 활성 코드가 있으면 먼저 revoke, team_invite_links에 새 코드 저장(평문)
+팀원(OWNER/ADMIN/MEMBER 누구나)이 초대 코드 생성 요청
+→ 활성 코드가 아직 안 만료됐으면 그대로 반환, 없거나 만료됐으면 (있는 경우 먼저 revoke 후)
+  team_invite_links에 새 코드 저장(평문)
 → 팀원이 초대 코드 입력
 → 카카오 로그인
 → team_members를 role=MEMBER로 생성 (또는 재가입 시 기존 행 UPDATE)

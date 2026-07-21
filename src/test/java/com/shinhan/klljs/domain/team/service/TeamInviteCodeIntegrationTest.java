@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -37,6 +38,9 @@ class TeamInviteCodeIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private Clock clock;
+
     @Test
     void issue_createsInviteWithPlaintextCode() {
         Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.OWNER);
@@ -51,7 +55,7 @@ class TeamInviteCodeIntegrationTest {
     }
 
     @Test
-    void issue_revokesPreviousInviteAndLeavesOneActiveCode() {
+    void issue_reusesActiveCodeWithinValidityWindow() {
         Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.ADMIN);
 
         TeamInviteCodeResponse first = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
@@ -61,9 +65,33 @@ class TeamInviteCodeIntegrationTest {
         List<TeamInviteLink> teamInvites = inviteRepository.findAll().stream()
                 .filter(invite -> invite.getTeam().getId().equals(fixture.team().getId()))
                 .toList();
-        assertThat(teamInvites).hasSize(2);
-        assertThat(teamInvites).filteredOn(invite -> invite.getRevokedAt() == null).hasSize(1);
-        assertThat(first.inviteCode()).isNotEqualTo(second.inviteCode());
+        assertThat(teamInvites).hasSize(1);
+        assertThat(teamInvites.getFirst().getRevokedAt()).isNull();
+        assertThat(first.inviteCode()).isEqualTo(second.inviteCode());
+        assertThat(first.inviteCodeExpiresAt()).isEqualTo(second.inviteCodeExpiresAt());
+    }
+
+    @Test
+    void issue_reissuesWhenPreviousCodeExpired() {
+        Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.OWNER);
+        TeamInviteLink expired = TeamInviteLink.builder()
+                .team(fixture.team())
+                .createdBy(fixture.member().getUser())
+                .inviteCode("OLDCOD1")
+                .maxUses(null)
+                .expiresAt(LocalDateTime.now(clock).minusHours(1))
+                .build();
+        entityManager.persist(expired);
+        entityManager.flush();
+
+        TeamInviteCodeResponse response = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.inviteCode()).isNotEqualTo("OLDCOD1");
+        assertThat(entityManager.find(TeamInviteLink.class, expired.getId()).getRevokedAt()).isNotNull();
+        TeamInviteLink newActive = inviteRepository.findByTeamIdAndRevokedAtIsNull(fixture.team().getId()).orElseThrow();
+        assertThat(newActive.getInviteCode()).isEqualTo(response.inviteCode());
     }
 
     @Test
