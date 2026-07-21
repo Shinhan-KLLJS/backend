@@ -1,5 +1,7 @@
 package com.shinhan.klljs.domain.campaign.controller;
 
+import com.shinhan.klljs.domain.campaign.dto.CampaignRenameRequest;
+import com.shinhan.klljs.domain.campaign.dto.CampaignRenameResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignDetailResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignListResponse;
 import com.shinhan.klljs.domain.campaign.dto.TeamCampaignSort;
@@ -17,7 +19,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * {@link TeamCampaignController}의 Swagger(OpenAPI) 문서 전용 인터페이스.
  * DashboardCampaignControllerDocs와 같은 이유로 매핑 애노테이션과 문서화 애노테이션을 분리한다.
  */
-@Tag(name = "캠페인 페이지", description = "팀 캠페인 목록/상세/삭제 API")
+@Tag(name = "캠페인 페이지", description = "팀 캠페인 목록/상세/수정/삭제 API")
 public interface TeamCampaignControllerDocs {
 
     @Operation(
@@ -138,6 +140,48 @@ public interface TeamCampaignControllerDocs {
             Long teamId,
             @Parameter(description = "캠페인 ID", example = "31")
             Long campaignId
+    );
+
+    @Operation(
+            summary = "캠페인명 수정",
+            description = """
+                    캠페인명만 바꾼다 (campaign-page-api-spec.md 6-1절). 브랜드명·집행기간·목표
+                    송출 횟수·소재 등 나머지 필드는 이번 API 범위가 아니다 - 재등록·전체 수정
+                    기능은 여전히 없다. 삭제와 마찬가지로 상태(집행 전/중/완료)와 무관하게 항상
+                    허용한다.
+
+                    ### 접근 권한
+                    팀의 `ACTIVE` `OWNER`/`ADMIN`만 가능하다 (캠페인 등록은 `MEMBER`도 가능하지만,
+                    수정은 삭제와 동일한 기준으로 `MEMBER`는 403).
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "수정 성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "isSuccess": true,
+                              "code": "COMMON_200_001",
+                              "message": "성공적으로 요청을 처리했습니다.",
+                              "result": {
+                                "campaignId": 31,
+                                "campaignName": "나이키 썸머 프로모션 2026"
+                              }
+                            }
+                            """))
+            ),
+            @ApiResponse(responseCode = "400", description = "`CAMPAIGN_400_001`: 캠페인명 누락 또는 30자 초과"),
+            @ApiResponse(responseCode = "403", description = "요청자가 이 팀 소속이 아님 (`TEAM_403_001`) 또는 `MEMBER`임 (`TEAM_403_003`)"),
+            @ApiResponse(responseCode = "404", description = "팀이 없음 (`TEAM_404_001`) 또는 캠페인이 없거나 이 팀 소유가 아님 (`CAMPAIGN_404_001`)")
+    })
+    com.shinhan.klljs.global.apiPayload.ApiResponse<CampaignRenameResponse> renameCampaign(
+            @Parameter(hidden = true) Jwt jwt,
+            @Parameter(description = "팀 ID", example = "1")
+            Long teamId,
+            @Parameter(description = "캠페인 ID", example = "31")
+            Long campaignId,
+            CampaignRenameRequest request
     );
 
     @Operation(

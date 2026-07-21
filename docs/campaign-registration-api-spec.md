@@ -82,11 +82,15 @@ SQS 메시지 한 건은 해당 이벤트 날짜에 캠페인이 존재하는 �
 메시지가 상황과 안 맞는다. 캠페인 등록·삭제 권한에는 `TeamErrorCode`의 아래 전용 값을 사용한다:
 
 ```java
-CAMPAIGN_MANAGEMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_003", "캠페인을 등록하거나 삭제할 권한이 없습니다.")
+CAMPAIGN_MANAGEMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_003", "캠페인을 삭제하거나 수정할 권한이 없습니다.")
 ```
 
-`campaign-page-api-spec.md`의 캠페인 삭제 API도 같은 상황(`MEMBER`가 삭제 시도)에 같은
-코드를 쓴다 — 두 문서가 같은 에러 코드를 공유하므로 한쪽에서만 정의하면 된다.
+`campaign-page-api-spec.md`의 캠페인 삭제·수정 API도 같은 상황(`MEMBER`가 삭제·수정 시도)에
+같은 코드를 쓴다 — 여러 문서가 같은 에러 코드를 공유하므로 한쪽에서만 정의하면 된다.
+
+(메시지는 이후 `campaign-page-api-spec.md` 2-2절에서 실제 등록 흐름은 `MEMBER`도 허용되어
+이 코드가 막아온 적이 없다는 게 확인되면서 "삭제하거나 수정"으로 정정됐다 — 최신 값은 항상
+`TeamErrorCode.java`를 기준으로 한다.)
 
 ---
 
