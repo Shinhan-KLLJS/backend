@@ -72,7 +72,7 @@ public class HourlyGraphService {
         AggregationWindow window = CampaignPeriodResolver.resolveAggregationWindow(effectivePeriod, today, nowUtc, ChronoUnit.HOURS);
 
         List<VisionSummary5s> rows = visionSummary5sRepository.findAllInRange(campaign.getId(), window.fromUtc(), window.toUtc());
-        List<HourlyGraphResponse.Point> points = aggregateByHour(rows);
+        List<HourlyGraphResponse.Point> points = aggregateByHour(rows, effectivePeriod.startDate());
 
         return new HourlyGraphResponse(
                 campaign.getId(), periodContext.selectedPeriod(), effectivePeriod, periodContext.periodStatus(),
@@ -81,33 +81,34 @@ public class HourlyGraphService {
     }
 
     /**
-     * 5초 row들을 이벤트 시각(UTC) 기준 "정시 절삭" 1시간 버킷으로 묶어 ots_count/lts_count를 합산한다.
+     * 5초 row들을 KST 기준 "시각(0~23시)"으로만 묶어 ots_count/lts_count를 합산한다 - 날짜는
+     * 버리고 시간대만 키로 쓰므로, 선택 기간이 여러 날짜에 걸쳐 있으면 같은 시각(예: 06시)의
+     * 여러 날짜치 데이터가 하나의 포인트로 합산된다(스펙 5-2절, 여러 날짜 조회 시 날짜별로
+     * 나뉘지 않고 시각별로 누적).
      *
-     * UTC로 절삭해도 KST 기준 1시간 경계와 항상 일치한다 - 한국은 UTC+9 고정 오프셋(서머타임 없음)이라
-     * 시(hour) 경계 자체는 UTC 기준으로 끊든 KST 기준으로 끊든 같은 순간을 가리키기 때문이다
-     * (KstDateTimes 클래스 주석 참고). 그래서 버킷 키는 UTC로 절삭하고, 응답에 보여줄 때만
-     * KST(+09:00)로 변환한다.
+     * 응답의 eventTime은 조회 결과가 실제로 여러 날짜에 걸쳐 있어도 anchorDateKst(=effectivePeriod
+     * 시작일) + 시각으로 만든 단일 날짜의 타임스탬프로 내려간다 - 프론트가 그래프 x축에 "시각"만
+     * 쓰는 걸 전제로, 날짜 부분은 고정 앵커일 뿐 실제 그 날짜의 데이터만이 아니라는 점에 유의한다.
      *
      * 데이터가 아예 없는 시간대는 버킷 자체가 생기지 않아 points에서 통째로 빠진다 - 5-1 API가
      * 값이 없는 5초 구간을 0으로 채워 넣지 않는 것과 같은 방식이라 두 API의 동작이 일관된다.
      *
-     * TreeMap을 쓰는 이유: findAllInRange가 이미 event_time 오름차순으로 정렬해서 주지만,
-     * 정렬 보장을 리포지토리 쿼리 하나에만 의존하지 않고 이 메서드 자체로도 항상 시간순
-     * 출력을 보장하기 위함이다 (키 타입이 LocalDateTime이라 자연 순서 = 시간순).
+     * TreeMap을 쓰는 이유: 키가 0~23 시각이라, 여러 날짜의 row가 뒤섞여 들어와도 항상 시각
+     * 오름차순으로 출력되도록 보장한다.
      */
-    private List<HourlyGraphResponse.Point> aggregateByHour(List<VisionSummary5s> rows) {
-        Map<LocalDateTime, long[]> sumsByHourUtc = new TreeMap<>();
+    private List<HourlyGraphResponse.Point> aggregateByHour(List<VisionSummary5s> rows, LocalDate anchorDateKst) {
+        Map<Integer, long[]> sumsByHourOfDayKst = new TreeMap<>();
 
         for (VisionSummary5s row : rows) {
-            LocalDateTime bucketStartUtc = row.getEventTime().truncatedTo(ChronoUnit.HOURS);
-            long[] sums = sumsByHourUtc.computeIfAbsent(bucketStartUtc, key -> new long[2]);
+            int hourOfDayKst = KstDateTimes.toKst(row.getEventTime()).getHour();
+            long[] sums = sumsByHourOfDayKst.computeIfAbsent(hourOfDayKst, key -> new long[2]);
             sums[0] += row.getOtsCount();
             sums[1] += row.getLtsCount();
         }
 
-        return sumsByHourUtc.entrySet().stream()
+        return sumsByHourOfDayKst.entrySet().stream()
                 .map(entry -> new HourlyGraphResponse.Point(
-                        KstDateTimes.toKstOffset(entry.getKey()),
+                        anchorDateKst.atTime(entry.getKey(), 0).atOffset(KstDateTimes.KST),
                         entry.getValue()[0],
                         entry.getValue()[1]
                 ))
