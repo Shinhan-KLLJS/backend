@@ -242,8 +242,12 @@ class TeamCampaignCommandServiceTest {
 
         CampaignRenameResponse response = service.renameCampaign(
                 fixture.userId(), fixture.teamId(), fixture.campaignId(), "  공백 캠페인명  ");
+        entityManager.flush();
+        entityManager.clear();
 
         assertThat(response.campaignName()).isEqualTo("공백 캠페인명");
+        assertThat(entityManager.find(Campaign.class, fixture.campaignId()).getCampaignName())
+                .isEqualTo("공백 캠페인명");
     }
 
     private VisionSummary5s persistVisionSummary(Fixture fixture) {
