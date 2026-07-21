@@ -17,10 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-public class UserController {
+public class UserController implements UserControllerDocs {
 
     private final UserQueryService userQueryService;
 
+    @Override
     @GetMapping("/api/v1/users/me")
     public ApiResponse<UserMeResponse> me(@AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());

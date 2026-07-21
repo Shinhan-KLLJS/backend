@@ -22,9 +22,10 @@ import java.time.OffsetDateTime;
  * (DashboardCampaignControllerDocs와 동일한 분리 방식).
  */
 @Tag(
-        name = "노출·주목 흐름 그래프",
-        description = "홈 화면의 '노출/주목 흐름 그래프' 카드용 API 2종(5-1 실시간, 5-2 시간별 누적). " +
-                "같은 화면 카드를 나눠 담당하며, 프론트는 아래 각 API 설명의 조건에 따라 둘 중 하나만 호출한다."
+        name = "홈 대시보드",
+        description = "홈 화면(대시보드)의 캠페인 목록/상세/송출정보 조회와 4개 카드(평균 시청시간·" +
+                "성별연령·시간대 노출도, 깔대기 그래프, 노출·주목 흐름 그래프) API를 모두 모았다. " +
+                "캠페인 자체의 수정·삭제는 '캠페인 페이지' 태그에서 다룬다."
 )
 public interface RealtimeGraphControllerDocs {
 

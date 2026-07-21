@@ -22,12 +22,13 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-public class AuthTokenController {
+public class AuthTokenController implements AuthTokenControllerDocs {
 
     private final RefreshTokenService refreshTokenService;
     private final JwtTokenService jwtTokenService;
     private final TrustedOriginValidator trustedOriginValidator;
 
+    @Override
     @PostMapping("/api/v1/auth/token/refresh")
     public ResponseEntity<ApiResponse<TokenResponse>> refresh(
             @CookieValue(name = RefreshTokenService.COOKIE_NAME, required = false) String refreshToken,
