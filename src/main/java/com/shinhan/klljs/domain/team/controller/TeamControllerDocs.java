@@ -2,6 +2,8 @@ package com.shinhan.klljs.domain.team.controller;
 
 import com.shinhan.klljs.domain.team.dto.TeamCreateRequest;
 import com.shinhan.klljs.domain.team.dto.TeamCreateResponse;
+import com.shinhan.klljs.domain.team.dto.TeamRenameRequest;
+import com.shinhan.klljs.domain.team.dto.TeamRenameResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,7 +16,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 /**
  * {@link TeamController}의 Swagger 문서 전용 인터페이스.
  */
-@Tag(name = "팀", description = "팀 생성 API")
+@Tag(name = "팀", description = "팀 생성·수정 API")
 public interface TeamControllerDocs {
 
     @Operation(
@@ -69,5 +71,41 @@ public interface TeamControllerDocs {
     com.shinhan.klljs.global.apiPayload.ApiResponse<TeamCreateResponse> createTeam(
             @Parameter(hidden = true) Jwt jwt,
             TeamCreateRequest request
+    );
+
+    @Operation(
+            summary = "팀명 수정",
+            description = """
+                    팀명만 바꾼다. 팀의 `OWNER`/`ADMIN`만 호출할 수 있고, `MEMBER`는 403이다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "수정 성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "isSuccess": true,
+                              "code": "COMMON_200_001",
+                              "message": "성공적으로 요청을 처리했습니다.",
+                              "result": {
+                                "teamId": 12,
+                                "teamName": "신한 KLLJS 딥비전스 옥외 광고 3팀"
+                              }
+                            }
+                            """))
+            ),
+            @ApiResponse(responseCode = "400", description = "`COMMON_400_002`: 팀명 누락 또는 200자 초과"),
+            @ApiResponse(responseCode = "403", description = """
+                    - `TEAM_403_001`: 요청자가 이 팀 소속이 아님
+                    - `TEAM_403_004`: 팀 소속이지만 `MEMBER`라 팀 설정을 바꿀 권한이 없음"""),
+            @ApiResponse(responseCode = "404", description = "`TEAM_404_001`: 팀이 없음"),
+            @ApiResponse(responseCode = "409", description = "`TEAM_409_001`: 팀이 `ACTIVE` 상태가 아님")
+    })
+    com.shinhan.klljs.global.apiPayload.ApiResponse<TeamRenameResponse> renameTeam(
+            @Parameter(hidden = true) Jwt jwt,
+            @Parameter(description = "팀 ID", example = "12")
+            Long teamId,
+            TeamRenameRequest request
     );
 }
