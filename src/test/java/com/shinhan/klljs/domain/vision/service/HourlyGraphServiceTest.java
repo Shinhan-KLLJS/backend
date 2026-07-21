@@ -149,6 +149,7 @@ class HourlyGraphServiceTest {
         assertThat(response.points().get(2).eventTime())
                 .isEqualTo(OffsetDateTime.of(2026, 7, 1, 16, 0, 0, 0, KstDateTimes.KST));
         assertThat(response.points().get(2).exposedPopulationCount()).isEqualTo(5);
+        assertThat(response.points().get(2).attentionPopulationCount()).isEqualTo(1);
     }
 
     @Test
