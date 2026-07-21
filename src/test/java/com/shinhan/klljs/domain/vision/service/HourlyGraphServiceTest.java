@@ -118,9 +118,9 @@ class HourlyGraphServiceTest {
         // 같은 시간(KST 07-01 15시) 버킷에 두 row -> 합산되어야 한다.
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 1, 15, 0, 0), 10, 2);
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 1, 15, 0, 5), 20, 3);
-        // 다른 시간대(16시) -> 별도 포인트.
+        // 다른 시각(16시) -> 별도 포인트.
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 1, 16, 0, 0), 5, 1);
-        // 다른 날짜(07-03) -> 별도 포인트.
+        // 다른 날짜(07-03)지만 시각(9시)이 앞의 두 시각(15,16)과 겹치지 않음 -> 별도 포인트.
         createVisionRow(campaign, LocalDateTime.of(2026, 7, 3, 9, 0, 0), 7, 1);
 
         // 선택 기간(07-01~07-03) 전체가 "오늘"(07-07)보다 과거 -> 완전히 확정된 데이터로 처리돼야 한다.
@@ -133,19 +133,52 @@ class HourlyGraphServiceTest {
         assertThat(response.aggregationCutoffTime())
                 .isEqualTo(OffsetDateTime.of(2026, 7, 4, 0, 0, 0, 0, KstDateTimes.KST));
 
+        // 날짜는 버리고 시각(0~23시) 오름차순으로 정렬되므로 9시(07-03 데이터) -> 15시 -> 16시 순.
+        // eventTime의 날짜 부분은 실제 날짜가 아니라 effectivePeriod 시작일(07-01)로 고정된 앵커다.
         assertThat(response.points()).hasSize(3);
         assertThat(response.points().get(0).eventTime())
-                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 15, 0, 0, 0, KstDateTimes.KST));
-        assertThat(response.points().get(0).exposedPopulationCount()).isEqualTo(30);
-        assertThat(response.points().get(0).attentionPopulationCount()).isEqualTo(5);
+                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 9, 0, 0, 0, KstDateTimes.KST));
+        assertThat(response.points().get(0).exposedPopulationCount()).isEqualTo(7);
+        assertThat(response.points().get(0).attentionPopulationCount()).isEqualTo(1);
 
         assertThat(response.points().get(1).eventTime())
-                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 16, 0, 0, 0, KstDateTimes.KST));
-        assertThat(response.points().get(1).exposedPopulationCount()).isEqualTo(5);
+                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 15, 0, 0, 0, KstDateTimes.KST));
+        assertThat(response.points().get(1).exposedPopulationCount()).isEqualTo(30);
+        assertThat(response.points().get(1).attentionPopulationCount()).isEqualTo(5);
 
         assertThat(response.points().get(2).eventTime())
-                .isEqualTo(OffsetDateTime.of(2026, 7, 3, 9, 0, 0, 0, KstDateTimes.KST));
-        assertThat(response.points().get(2).exposedPopulationCount()).isEqualTo(7);
+                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 16, 0, 0, 0, KstDateTimes.KST));
+        assertThat(response.points().get(2).exposedPopulationCount()).isEqualTo(5);
+    }
+
+    @Test
+    void multiDayPeriod_sumsSameHourOfDayAcrossDifferentDatesIntoOnePoint() {
+        Campaign campaign = createCampaign(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 7, 31));
+
+        // 세 날짜(07-01~07-03, "오늘"인 07-07보다 과거) 모두 같은 시각(06시)에 데이터
+        // -> 날짜별로 나뉘지 않고 한 포인트로 합산돼야 한다.
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 1, 6, 0, 0), 10, 1);
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 2, 6, 0, 0), 20, 2);
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 3, 6, 0, 0), 30, 3);
+        // 07-02만 7시 데이터도 있음 -> 06시와 별도 포인트.
+        createVisionRow(campaign, LocalDateTime.of(2026, 7, 2, 7, 0, 0), 5, 0);
+
+        HourlyGraphResponse response = service.getHourlyGraph(
+                userId, campaign.getId(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 3));
+
+        assertThat(response.points()).hasSize(2);
+
+        // 06시: 세 날짜 합산 = 10+20+30, 1+2+3. eventTime 날짜는 effectivePeriod 시작일(07-01)로 고정.
+        assertThat(response.points().get(0).eventTime())
+                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 6, 0, 0, 0, KstDateTimes.KST));
+        assertThat(response.points().get(0).exposedPopulationCount()).isEqualTo(60);
+        assertThat(response.points().get(0).attentionPopulationCount()).isEqualTo(6);
+
+        // 07시: 07-02 데이터 하나뿐.
+        assertThat(response.points().get(1).eventTime())
+                .isEqualTo(OffsetDateTime.of(2026, 7, 1, 7, 0, 0, 0, KstDateTimes.KST));
+        assertThat(response.points().get(1).exposedPopulationCount()).isEqualTo(5);
+        assertThat(response.points().get(1).attentionPopulationCount()).isEqualTo(0);
     }
 
     @Test
