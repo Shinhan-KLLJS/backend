@@ -123,6 +123,18 @@ class TeamMemberManagementServiceTest {
     }
 
     @Test
+    void renameTeam_trimsEdgeWhitespace() {
+        Team team = persistTeam(TeamStatus.ACTIVE);
+        TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
+        entityManager.flush();
+
+        TeamRenameResponse response = service.renameTeam(owner.getUser().getId(), team.getId(), "  공백 팀명  ");
+
+        assertThat(response.teamName()).isEqualTo("공백 팀명");
+        assertThat(team.getTeamName()).isEqualTo("공백 팀명");
+    }
+
+    @Test
     void removeAndLeave_changeMembershipStatuses() {
         Team team = persistTeam(TeamStatus.ACTIVE);
         TeamMember owner = persistMember(team, "오너", "owner@example.com", TeamMemberRole.OWNER, TeamMemberStatus.ACTIVE);
