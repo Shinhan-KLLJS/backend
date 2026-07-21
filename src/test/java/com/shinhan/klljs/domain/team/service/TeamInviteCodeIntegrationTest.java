@@ -95,6 +95,32 @@ class TeamInviteCodeIntegrationTest {
     }
 
     @Test
+    void issue_reissuesWhenPreviousCodeIsLegacyNullInviteCode() {
+        // V11 이전 해시 저장 방식에서 넘어온 행 재현 - revoke도 만료도 안 됐지만 평문 코드를
+        // 복원할 수 없어 inviteCode가 null이다. isUsable()만 보면 재사용 가능하다고 오판해
+        // inviteCode: null을 그대로 응답해버리는 회귀를 잡는 테스트다.
+        Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.OWNER);
+        TeamInviteLink legacyNullCode = TeamInviteLink.builder()
+                .team(fixture.team())
+                .createdBy(fixture.member().getUser())
+                .inviteCode(null)
+                .maxUses(null)
+                .expiresAt(LocalDateTime.now(clock).plusDays(300))
+                .build();
+        entityManager.persist(legacyNullCode);
+        entityManager.flush();
+
+        TeamInviteCodeResponse response = service.issue(fixture.member().getUser().getId(), fixture.team().getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.inviteCode()).isNotNull();
+        assertThat(entityManager.find(TeamInviteLink.class, legacyNullCode.getId()).getRevokedAt()).isNotNull();
+        TeamInviteLink newActive = inviteRepository.findByTeamIdAndRevokedAtIsNull(fixture.team().getId()).orElseThrow();
+        assertThat(newActive.getInviteCode()).isEqualTo(response.inviteCode());
+    }
+
+    @Test
     void issue_allowsMemberRole() {
         Fixture fixture = persistFixture(TeamStatus.ACTIVE, TeamMemberRole.MEMBER);
 
