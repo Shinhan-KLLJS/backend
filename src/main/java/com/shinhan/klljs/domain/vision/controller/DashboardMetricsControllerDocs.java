@@ -21,10 +21,10 @@ import java.time.LocalDate;
  * 매핑 애노테이션은 컨트롤러에 그대로 두고, 여기에는 문서화용 애노테이션만 둔다.
  */
 @Tag(
-        name = "평균 시청시간·성별연령·시간대 노출도",
-        description = "평균 시청시간, 성별·연령 시청 비율, 시간·연령별 노출도 3개 API. " +
-                "campaignId + selectedPeriod/effectivePeriod/periodStatus + aggregationUnit/" +
-                "aggregationCutoffTime/refreshIntervalSec 틀을 공유한다."
+        name = "홈 대시보드",
+        description = "홈 화면(대시보드)의 캠페인 목록/상세/송출정보 조회와 4개 카드(평균 시청시간·" +
+                "성별연령·시간대 노출도, 깔대기 그래프, 노출·주목 흐름 그래프) API를 모두 모았다. " +
+                "캠페인 자체의 수정·삭제는 '캠페인 페이지' 태그에서 다룬다."
 )
 public interface DashboardMetricsControllerDocs {
 
@@ -33,6 +33,10 @@ public interface DashboardMetricsControllerDocs {
             description = """
                     도넛 차트로 표시할 평균 시청시간과 시청시간 구간별 분포를 조회한다. `refreshIntervalSec`
                     (60초)에 맞춰 재조회를 권장한다. 1분 단위로 확정된 데이터만 집계한다.
+
+                    형제 API 2개(성별·연령 시청 비율, 시간·연령별 노출도)와 `campaignId` +
+                    `selectedPeriod`/`effectivePeriod`/`periodStatus` + `aggregationUnit`/
+                    `aggregationCutoffTime`/`refreshIntervalSec` 파라미터·응답 틀을 공유한다.
 
                     ### 집계 범위
                     - 선택 기간에 **오늘이 포함**되면, 지금 진행 중인 분(아직 5초 데이터가 다 안 모였을 수 있음)은
@@ -105,6 +109,9 @@ public interface DashboardMetricsControllerDocs {
             description = """
                     화면 우측의 성별·연령 시청 비율 막대 그래프를 조회한다. LTS(주목인구) 성별·연령
                     집계 기반이다. `refreshIntervalSec`(3600초)에 맞춰 재조회를 권장한다.
+
+                    형제 API 2개(평균 시청시간, 시간·연령별 노출도)와 파라미터·응답 틀을 공유한다
+                    (평균 시청시간 조회 API 설명 참고).
 
                     ### 전체/남성/여성 토글
                     화면에 토글 버튼이 있지만 **버튼을 눌러도 API를 다시 호출하지 않는다** - 한 번의 응답에
@@ -183,6 +190,9 @@ public interface DashboardMetricsControllerDocs {
             description = """
                     시간대·연령대별 노출도 히트맵을 조회한다. OTS(노출인구) 성별·연령 집계 기반이다.
                     `refreshIntervalSec`(3600초)에 맞춰 재조회를 권장한다.
+
+                    형제 API 2개(평균 시청시간, 성별·연령 시청 비율)와 파라미터·응답 틀을 공유한다
+                    (평균 시청시간 조회 API 설명 참고).
 
                     ### 시간 축 집계 방식
                     날짜는 버리고 **하루 중 시간대(0~23시)** 기준으로 묶는다 - 예를 들어 선택 기간이

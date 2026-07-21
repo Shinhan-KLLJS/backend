@@ -16,11 +16,12 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-public class LogoutController {
+public class LogoutController implements LogoutControllerDocs {
 
     private final RefreshTokenService refreshTokenService;
     private final TrustedOriginValidator trustedOriginValidator;
 
+    @Override
     @PostMapping("/api/v1/auth/logout")
     public ResponseEntity<Void> logout(
             @CookieValue(name = RefreshTokenService.COOKIE_NAME, required = false) String refreshToken,

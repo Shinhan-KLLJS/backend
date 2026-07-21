@@ -31,8 +31,10 @@ import java.time.LocalDate;
  * 감싸져 있다. 아래 각 API 설명의 예시 JSON은 이 래퍼를 포함한 전체 응답 바디 기준이다.
  */
 @Tag(
-        name = "캠페인 대시보드",
-        description = "홈 대시보드의 캠페인 목록/상세정보/송출정보 조회 API"
+        name = "홈 대시보드",
+        description = "홈 화면(대시보드)의 캠페인 목록/상세/송출정보 조회와 4개 카드(평균 시청시간·" +
+                "성별연령·시간대 노출도, 깔대기 그래프, 노출·주목 흐름 그래프) API를 모두 모았다. " +
+                "캠페인 자체의 수정·삭제는 '캠페인 페이지' 태그에서 다룬다."
 )
 public interface DashboardCampaignControllerDocs {
 
