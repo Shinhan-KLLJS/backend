@@ -1,5 +1,6 @@
 package com.shinhan.klljs.domain.campaign.service;
 
+import com.shinhan.klljs.domain.campaign.dto.CampaignRenameResponse;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.entity.CampaignCreativeType;
 import com.shinhan.klljs.domain.campaign.entity.CampaignStatus;
@@ -130,6 +131,119 @@ class TeamCampaignCommandServiceTest {
         VisionSummary5s reloaded = entityManager.find(VisionSummary5s.class, summary.getId());
         assertThat(reloaded).isNotNull();
         assertThat(reloaded.getCampaign()).isNull();
+    }
+
+    @Test
+    void renameCampaign_ownerCanRename() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+
+        CampaignRenameResponse response = service.renameCampaign(
+                fixture.userId(), fixture.teamId(), fixture.campaignId(), "새 캠페인명");
+        entityManager.flush();
+
+        assertThat(response.campaignId()).isEqualTo(fixture.campaignId());
+        assertThat(response.campaignName()).isEqualTo("새 캠페인명");
+        assertThat(entityManager.find(Campaign.class, fixture.campaignId()).getCampaignName())
+                .isEqualTo("새 캠페인명");
+    }
+
+    @Test
+    void renameCampaign_adminCanRename() {
+        Fixture fixture = persistFixture(TeamMemberRole.ADMIN);
+
+        service.renameCampaign(fixture.userId(), fixture.teamId(), fixture.campaignId(), "관리자가 바꾼 캠페인명");
+        entityManager.flush();
+
+        assertThat(entityManager.find(Campaign.class, fixture.campaignId()).getCampaignName())
+                .isEqualTo("관리자가 바꾼 캠페인명");
+    }
+
+    @Test
+    void renameCampaign_memberIsForbidden() {
+        Fixture fixture = persistFixture(TeamMemberRole.MEMBER);
+        String originalName = entityManager.find(Campaign.class, fixture.campaignId()).getCampaignName();
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(fixture.userId(), fixture.teamId(), fixture.campaignId(), "멤버가 시도한 캠페인명"))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.CAMPAIGN_MANAGEMENT_FORBIDDEN));
+        entityManager.flush();
+        assertThat(entityManager.find(Campaign.class, fixture.campaignId()).getCampaignName())
+                .isEqualTo(originalName);
+    }
+
+    @Test
+    void renameCampaign_throwsAccessDeniedForNonMember() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+        User outsider = User.builder().displayName("외부인").status(UserStatus.ACTIVE).build();
+        entityManager.persist(outsider);
+        entityManager.flush();
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(outsider.getId(), fixture.teamId(), fixture.campaignId(), "새 캠페인명"))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_ACCESS_DENIED));
+    }
+
+    @Test
+    void renameCampaign_throwsTeamNotFoundForNonExistentTeam() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(fixture.userId(), 999_999L, fixture.campaignId(), "새 캠페인명"))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(TeamErrorCode.TEAM_NOT_FOUND));
+    }
+
+    @Test
+    void renameCampaign_throwsCampaignNotFoundWhenCampaignDoesNotExist() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(fixture.userId(), fixture.teamId(), 999_999L, "새 캠페인명"))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.CAMPAIGN_NOT_FOUND));
+    }
+
+    @Test
+    void renameCampaign_throwsCampaignNotFoundWhenCampaignBelongsToDifferentTeam() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+        Fixture otherTeam = persistFixture(TeamMemberRole.OWNER);
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(fixture.userId(), fixture.teamId(), otherTeam.campaignId(), "새 캠페인명"))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.CAMPAIGN_NOT_FOUND));
+    }
+
+    @Test
+    void renameCampaign_rejectsBlankName() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(fixture.userId(), fixture.teamId(), fixture.campaignId(), "   "))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST));
+    }
+
+    @Test
+    void renameCampaign_rejectsNameOverMaxLength() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+
+        assertThatThrownBy(() ->
+                service.renameCampaign(fixture.userId(), fixture.teamId(), fixture.campaignId(), "A".repeat(31)))
+                .isInstanceOfSatisfying(GeneralException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST));
+    }
+
+    @Test
+    void renameCampaign_trimsEdgeWhitespace() {
+        Fixture fixture = persistFixture(TeamMemberRole.OWNER);
+
+        CampaignRenameResponse response = service.renameCampaign(
+                fixture.userId(), fixture.teamId(), fixture.campaignId(), "  공백 캠페인명  ");
+
+        assertThat(response.campaignName()).isEqualTo("공백 캠페인명");
     }
 
     private VisionSummary5s persistVisionSummary(Fixture fixture) {

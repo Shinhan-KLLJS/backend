@@ -16,7 +16,7 @@ public enum TeamErrorCode implements BaseErrorCode {
     CAMPAIGN_MANAGEMENT_FORBIDDEN(
             HttpStatus.FORBIDDEN,
             "TEAM_403_003",
-            "캠페인을 등록하거나 삭제할 권한이 없습니다."
+            "캠페인을 삭제하거나 수정할 권한이 없습니다."
     ),
     TEAM_SETTINGS_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_004", "팀 설정을 변경할 권한이 없습니다."),
 

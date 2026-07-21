@@ -125,4 +125,8 @@ public class Campaign extends BaseTimeEntity {
     public void changeStatus(CampaignStatus status) {
         this.status = status;
     }
+
+    public void rename(String campaignName) {
+        this.campaignName = campaignName;
+    }
 }

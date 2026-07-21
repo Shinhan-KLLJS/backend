@@ -1,5 +1,6 @@
 package com.shinhan.klljs.domain.campaign.service;
 
+import com.shinhan.klljs.domain.campaign.dto.CampaignRenameResponse;
 import com.shinhan.klljs.domain.campaign.entity.Campaign;
 import com.shinhan.klljs.domain.campaign.exception.CampaignErrorCode;
 import com.shinhan.klljs.domain.campaign.repository.CampaignRepository;
@@ -28,9 +29,43 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TeamCampaignCommandService {
 
+    private static final int MAX_CAMPAIGN_NAME_LENGTH = 30;
+
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final CampaignRepository campaignRepository;
+
+    /** OWNER/ADMIN만 캠페인명을 바꿀 수 있다 - 삭제와 동일한 권한 기준. */
+    @Transactional
+    public CampaignRenameResponse renameCampaign(Long userId, Long teamId, Long campaignId, String campaignName) {
+        teamRepository.findById(teamId)
+                .orElseThrow(() -> new GeneralException(TeamErrorCode.TEAM_NOT_FOUND));
+
+        TeamMember requester = teamMemberRepository.findByUserIdAndTeamIdAndStatus(
+                        userId, teamId, TeamMemberStatus.ACTIVE
+                )
+                .orElseThrow(() -> new GeneralException(TeamErrorCode.TEAM_ACCESS_DENIED));
+        if (requester.getRole() == TeamMemberRole.MEMBER) {
+            throw new GeneralException(TeamErrorCode.CAMPAIGN_MANAGEMENT_FORBIDDEN);
+        }
+
+        if (campaignName == null || campaignName.isBlank()) {
+            throw new GeneralException(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST);
+        }
+        String trimmedName = campaignName.trim();
+        if (trimmedName.length() > MAX_CAMPAIGN_NAME_LENGTH) {
+            throw new GeneralException(CampaignErrorCode.INVALID_CAMPAIGN_REQUEST);
+        }
+
+        Campaign campaign = campaignRepository.findByIdForUpdate(campaignId)
+                .orElseThrow(() -> new GeneralException(CampaignErrorCode.CAMPAIGN_NOT_FOUND));
+        if (!campaign.getTeam().getId().equals(teamId)) {
+            throw new GeneralException(CampaignErrorCode.CAMPAIGN_NOT_FOUND);
+        }
+
+        campaign.rename(trimmedName);
+        return CampaignRenameResponse.of(campaign);
+    }
 
     @Transactional
     public void deleteCampaign(Long userId, Long teamId, Long campaignId) {

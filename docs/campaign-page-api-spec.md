@@ -7,10 +7,12 @@
 1. 팀 캠페인 목록 조회 (이름/집행일 정렬, 상태 필터, 캠페인명 검색)
 2. 캠페인 상세정보 보기 (팝업)
 3. 캠페인 삭제
+4. 캠페인명 수정
 
-화면에 있는 "리포트 추출" 버튼은 MVP 범위가 아니다. 캠페인 수정·재등록 API도 이번 범위가
-아니다 — `campaign-registration-api-spec.md` 14절에서 이미 추후 범위로 남겨뒀고, 이번 문서는
-그중 "삭제"만 앞당겨 다룬다.
+화면에 있는 "리포트 추출" 버튼은 MVP 범위가 아니다. 캠페인 전체 수정(브랜드명·집행기간·목표
+송출 횟수·소재 등)·재등록 API도 이번 범위가 아니다 — `campaign-registration-api-spec.md`
+14절에서 이미 추후 범위로 남겨뒀고, 이번 문서는 그중 "삭제"와, 문의가 들어온 "캠페인명
+수정"만 앞당겨 다룬다.
 
 이 문서는 `campaign-registration-api-spec.md`(등록)와 `docs/home-dashboard-api-spec.md`(홈
 대시보드)에 이미 있는 `Campaign`/`MediaUnit` 엔티티와 상태 모델을 그대로 재사용한다 — 새
@@ -64,11 +66,17 @@ MVP 단순성을 우선해서 하드 삭제로 확정한다. `campaignRepository
 코드에는 없음, 문서만 먼저 반영):
 
 ```java
-CAMPAIGN_MANAGEMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_003", "캠페인을 등록하거나 삭제할 권한이 없습니다.")
+CAMPAIGN_MANAGEMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_003", "캠페인을 삭제하거나 수정할 권한이 없습니다.")
 ```
 
 `campaign-registration-api-spec.md`의 캠페인 등록 API도 같은 상황(`MEMBER`가 등록 시도)에
 같은 코드를 써야 하므로 그 문서도 같이 고쳤다.
+
+메시지는 원래 "등록하거나 삭제"였는데, 실제로 등록은 `MEMBER`도 할 수 있어(2-3절이 아니라
+`CampaignRegistrationTransactionService`의 역할 제한 없음 코멘트 참고) 이 코드가 지금까지
+실제로 막아온 건 삭제뿐이었다. 6-1절의 "캠페인명 수정"도 삭제와 같은 권한 기준(OWNER/ADMIN)이라
+이 코드를 그대로 재사용하면서, 메시지를 실제로 막는 두 가지 행동("삭제"·"수정")에 맞게
+고쳤다.
 
 ### 2-3. 필터·정렬 매핑
 
@@ -97,6 +105,7 @@ CAMPAIGN_MANAGEMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "TEAM_403_003", "캠페인�
 |---|---|---|---|
 | 팀 캠페인 목록 조회 | GET | `/api/v1/teams/{teamId}/campaigns` | 팀 ACTIVE 멤버 |
 | 캠페인 상세정보 조회 | GET | `/api/v1/teams/{teamId}/campaigns/{campaignId}` | 팀 ACTIVE 멤버 |
+| 캠페인명 수정 | PATCH | `/api/v1/teams/{teamId}/campaigns/{campaignId}` | OWNER/ADMIN |
 | 캠페인 삭제 | DELETE | `/api/v1/teams/{teamId}/campaigns/{campaignId}` | OWNER/ADMIN |
 
 `campaign-registration-api-spec.md`의 `POST /api/v1/teams/{teamId}/campaigns`와 같은 경로
@@ -299,6 +308,77 @@ Authorization: Bearer {accessToken}
 
 ---
 
+## 6-1. 캠페인명 수정 API
+
+캠페인명(`campaignName`)만 바꾼다. 문의로 들어온 요청이라 뒤늦게 추가됐다 — 브랜드명·집행기간·
+목표 송출 횟수·소재 등 나머지 필드 수정과 재등록은 여전히 이번 범위가 아니다(12절).
+
+### Request
+
+```http
+PATCH /api/v1/teams/{teamId}/campaigns/{campaignId}
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{
+  "campaignName": "나이키 썸머 프로모션 2026"
+}
+```
+
+`campaignName` 검증 규칙은 등록 API(`campaign-registration-api-spec.md`)와 동일하게 맞췄다 —
+앞뒤 공백을 제거하고, 빈 값이거나 30자를 넘으면 `400`(`CAMPAIGN_400_001`). `Campaign.campaignName`
+컬럼 자체는 200자까지 허용하지만, 등록 시 이미 30자로 더 엄격하게 막고 있어 수정에서만 다른
+상한을 적용하면 "등록할 때는 막혔던 이름을 수정으로는 만들 수 있는" 모순이 생긴다 - 그래서
+같은 30자 기준을 그대로 따른다.
+
+### 접근 권한
+
+- 팀 없음 `404`, 요청자 미소속 `403`
+- 요청자가 `MEMBER`면 `403` (삭제와 동일한 권한 기준 — 등록은 `MEMBER`도 가능하지만 삭제·수정은
+  OWNER/ADMIN만)
+
+### 처리 순서
+
+1. 캠페인을 조회한다. 없거나 이 팀 소유가 아니면 `404`.
+2. 삭제와 동일하게 `campaignRepository.findByIdForUpdate`로 잠근 뒤 `campaignName`을 갱신한다 —
+   같은 캠페인에 대한 동시 수정/삭제 요청을 직렬화하기 위해서다.
+
+**상태(집행 전/중/완료)와 무관하게 항상 허용한다** — 삭제와 같은 원칙이다(2-2절). 이미 집행
+중이거나 끝난 캠페인이라고 이름을 못 바꿀 이유가 없다고 판단했다.
+
+### Response Fields
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `campaignId` | number | |
+| `campaignName` | string | 정리(trim)된 뒤 저장된 값 |
+
+### Response Example
+
+```json
+{
+  "isSuccess": true,
+  "code": "COMMON_200_001",
+  "message": "성공적으로 요청을 처리했습니다.",
+  "result": {
+    "campaignId": 31,
+    "campaignName": "나이키 썸머 프로모션 2026"
+  }
+}
+```
+
+### 에러 케이스
+
+| 상황 | HTTP / 코드 |
+|---|---|
+| 팀이 없음 | `404 / TEAM_404_001` |
+| 요청자가 이 팀 소속이 아님 | `403 / TEAM_403_001` |
+| 요청자가 `MEMBER`임 | `403 / TEAM_403_003` |
+| 캠페인이 없음(삭제됐거나 애초에 없음) 또는 이 팀 소유가 아님 | `404 / CAMPAIGN_404_001` |
+| `campaignName`이 비어 있거나 30자를 초과 | `400 / CAMPAIGN_400_001` |
+
+---
+
 ## 7. 기존 기능에 미치는 영향 — 없음
 
 하드 삭제라 `campaigns` row 자체가 사라지므로, 기존 코드 어디에도 변경이 필요 없다.
@@ -364,6 +444,15 @@ Authorization: Bearer {accessToken}
 - 다른 팀 소유 캠페인 조회 시 404
 - 팀 미소속 403
 
+### 캠페인명 수정
+
+- OWNER/ADMIN 성공, MEMBER 403
+- 앞뒤 공백 제거 후 저장
+- 빈 값/30자 초과는 `400`, MEMBER의 403 응답에서 캠페인명이 실제로 안 바뀌었는지 확인
+- 팀 미소속 403, 팀 없음 404
+- 삭제됐거나 존재하지 않는 캠페인 수정 시 404, 다른 팀 소유 캠페인 수정 시 404
+- 집행 중/집행 완료 캠페인도 수정 가능(상태 무관)
+
 ### 삭제
 
 - OWNER/ADMIN 성공, MEMBER 403
@@ -378,7 +467,8 @@ Authorization: Bearer {accessToken}
 
 ## 12. 이번 범위에서 제외
 
-- **캠페인 수정** — `campaign-registration-api-spec.md`에서부터 이어지는 범위 밖 항목.
+- **캠페인명 외 나머지 필드 수정** (브랜드명·집행기간·목표 송출 횟수·소재 등) — 6-1절은
+  `campaignName`만 다룬다. `campaign-registration-api-spec.md`에서부터 이어지는 범위 밖 항목.
 - **캠페인 재등록** — 위와 동일.
 - **삭제 취소(복원)** — 하드 삭제를 선택했으므로 나중에 추가로 만들 수 있는 기능이
   아니다. 삭제된 캠페인의 데이터는 영구적으로 복구할 수 없다.
