@@ -47,12 +47,15 @@ public class MediaUnitController implements MediaUnitControllerDocs {
             @RequestParam(required = false) String sido,
             @RequestParam(required = false) String sigungu,
             @RequestParam(required = false) String executionStartDate,
-            @RequestParam(required = false) String executionEndDate
+            @RequestParam(required = false) String executionEndDate,
+            @RequestParam(required = false) Integer offset,
+            @RequestParam(required = false) Integer limit
     ) {
         return ApiResponse.onSuccess(
                 GeneralSuccessCode.OK,
                 queryService.getMediaUnits(
-                        keyword, sido, sigungu, parseDate(executionStartDate), parseDate(executionEndDate)
+                        keyword, sido, sigungu, parseDate(executionStartDate), parseDate(executionEndDate),
+                        offset, limit
                 )
         );
     }

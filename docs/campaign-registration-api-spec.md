@@ -306,7 +306,8 @@ HTTP 상태는 `201 Created`다.
 ## 6. 매체 목록·검색·지역 필터 API
 
 하나의 GET API가 전체 목록, 키워드 검색, 시/구 필터와 캠페인 기간 가용성 확인을 모두 담당한다.
-매체 수가 적은 MVP를 전제로 페이지네이션 없이 조건에 맞는 ACTIVE 매체를 전부 반환한다.
+매체 사진(`photoUrl`)이 고해상도 원본이라 목록 전체를 한 번에 내려주면 트래픽이 커서,
+`offset`/`limit` 기반 페이지네이션으로 나눠 받는다(무한 스크롤 전제).
 
 ### Request
 
@@ -317,6 +318,8 @@ GET /api/v1/media-units
   &sigungu=강남구
   &executionStartDate=2026-07-11
   &executionEndDate=2026-07-12
+  &offset=0
+  &limit=10
 Authorization: Bearer {accessToken}
 ```
 
@@ -327,9 +330,18 @@ Authorization: Bearer {accessToken}
 | `sigungu` | N | 시/군/구 정확히 일치. 지정하려면 `sido`도 필요 |
 | `executionStartDate` | Y | 선택 캠페인 시작일 `yyyy-MM-dd` |
 | `executionEndDate` | Y | 선택 캠페인 종료일 `yyyy-MM-dd` |
+| `offset` | N | 건너뛸 개수. 생략하면 `0` |
+| `limit` | N | 가져올 개수. 생략하면 `10`, 최대 `50`(범위를 벗어나면 서버가 자동으로 clamp) |
 
 `keyword`는 앞뒤 공백 제거 후 빈 문자열이면 없는 것과 같다. `%`, `_`는 와일드카드가 아니라 일반
 문자로 검색한다. 종료일이 시작일보다 빠르면 `400`이다.
+
+### 페이지네이션(무한 스크롤)
+
+`keyword`/`sido`/`sigungu`/기간 필터가 전부 적용된 결과 기준으로 `offset`/`limit`을 적용한다.
+예: 화면 진입 시 `limit=10`으로 첫 호출, 스크롤을 내릴 때마다 직전 `offset + limit`을 다음
+`offset`으로 삼아 `limit=6`으로 반복 호출. 응답의 `hasMore`가 `false`면 더 불러올 매체가 없다는
+뜻이다.
 
 ### 가용성 규칙
 
@@ -373,13 +385,14 @@ existing.executionEndDate >= requestedStartDate
         "available": true,
         "unavailableReason": null
       }
-    ]
+    ],
+    "hasMore": true
   }
 }
 ```
 
 기간 충돌이면 `unavailableReason = "PERIOD_CONFLICT"`다. 목록에서 제외하지 않고 반환해 프론트가
-비활성 표시할 수 있게 한다. 매체가 없으면 에러가 아니라 `mediaUnits: []`를 반환한다.
+비활성 표시할 수 있게 한다. 매체가 없으면 에러가 아니라 `mediaUnits: []`, `hasMore: false`를 반환한다.
 
 ### 에러 케이스
 

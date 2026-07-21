@@ -30,6 +30,10 @@ import java.util.TreeSet;
 @RequiredArgsConstructor
 public class MediaUnitQueryService {
 
+    private static final int DEFAULT_OFFSET = 0;
+    private static final int DEFAULT_LIMIT = 10;
+    private static final int MAX_LIMIT = 50;
+
     private final MediaUnitRepository mediaUnitRepository;
     private final CampaignRepository campaignRepository;
 
@@ -39,7 +43,9 @@ public class MediaUnitQueryService {
             String sido,
             String sigungu,
             LocalDate executionStartDate,
-            LocalDate executionEndDate
+            LocalDate executionEndDate,
+            Integer offsetParam,
+            Integer limitParam
     ) {
         validatePeriod(executionStartDate, executionEndDate);
 
@@ -64,21 +70,47 @@ public class MediaUnitQueryService {
                 .toList();
 
         if (filtered.isEmpty()) {
-            return new MediaUnitListResponse(List.of());
+            return new MediaUnitListResponse(List.of(), false);
         }
 
-        List<Long> mediaUnitIds = filtered.stream().map(MediaUnit::getId).toList();
+        // 매체 사진(photoUrl)이 고해상도 원본이라 한 번에 다 내려주면 트래픽이 크다 - 화면에 보일
+        // 만큼만 페이지로 잘라서 응답한다(무한 스크롤). 매체 수가 많아져도 findConflictingMediaUnitIds가
+        // 이 페이지의 ID만 조회하도록, 페이지네이션을 먼저 적용한 뒤 기간 충돌을 계산한다.
+        int offset = clampOffset(offsetParam);
+        int limit = clampLimit(limitParam);
+        List<MediaUnit> page = filtered.stream().skip(offset).limit(limit).toList();
+        boolean hasMore = offset + page.size() < filtered.size();
+
+        if (page.isEmpty()) {
+            return new MediaUnitListResponse(List.of(), false);
+        }
+
+        List<Long> pageMediaUnitIds = page.stream().map(MediaUnit::getId).toList();
         Set<Long> conflictingIds = new HashSet<>(campaignRepository.findConflictingMediaUnitIds(
-                mediaUnitIds,
+                pageMediaUnitIds,
                 CampaignStatus.REGISTRATION_FAILED,
                 executionStartDate,
                 executionEndDate
         ));
 
-        List<MediaUnitSummary> summaries = filtered.stream()
+        List<MediaUnitSummary> summaries = page.stream()
                 .map(media -> MediaUnitSummary.from(media, !conflictingIds.contains(media.getId())))
                 .toList();
-        return new MediaUnitListResponse(summaries);
+        return new MediaUnitListResponse(summaries, hasMore);
+    }
+
+    private int clampOffset(Integer offsetParam) {
+        if (offsetParam == null) {
+            return DEFAULT_OFFSET;
+        }
+        return Math.max(0, offsetParam);
+    }
+
+    private int clampLimit(Integer limitParam) {
+        if (limitParam == null) {
+            return DEFAULT_LIMIT;
+        }
+        return Math.max(1, Math.min(limitParam, MAX_LIMIT));
     }
 
     @Transactional(readOnly = true)
