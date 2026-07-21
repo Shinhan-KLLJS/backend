@@ -15,6 +15,7 @@ import com.shinhan.klljs.domain.team.repository.TeamMemberRepository;
 import com.shinhan.klljs.domain.team.repository.TeamRepository;
 import com.shinhan.klljs.global.apiPayload.code.GeneralErrorCode;
 import com.shinhan.klljs.global.apiPayload.exception.GeneralException;
+import com.shinhan.klljs.global.util.Texts;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,7 +73,7 @@ public class TeamMemberManagementService {
             throw new GeneralException(TeamErrorCode.TEAM_SETTINGS_FORBIDDEN);
         }
 
-        team.rename(teamName);
+        team.rename(Texts.trim(teamName));
         return TeamRenameResponse.of(team);
     }
 
