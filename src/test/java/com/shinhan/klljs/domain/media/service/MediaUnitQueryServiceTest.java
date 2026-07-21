@@ -110,6 +110,39 @@ class MediaUnitQueryServiceTest {
     }
 
     @Test
+    void getMediaUnits_negativeOffsetAndLimitAreClampedToValidMinimums() {
+        for (int i = 1; i <= 3; i++) {
+            persistMedia("매체 %02d".formatted(i), "서울특별시", "강남구");
+        }
+        entityManager.flush();
+
+        MediaUnitListResponse response = service.getMediaUnits(
+                null, null, null, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 2), -5, -3
+        );
+
+        // offset은 0으로, limit은 1(음수/0 허용 안 함)로 clamp -> 첫 페이지 첫 항목 하나만.
+        assertThat(response.mediaUnits()).singleElement().satisfies(
+                media -> assertThat(media.mediaName()).isEqualTo("매체 01")
+        );
+        assertThat(response.hasMore()).isTrue();
+    }
+
+    @Test
+    void getMediaUnits_offsetBeyondTotalCountReturnsEmptyWithHasMoreFalse() {
+        for (int i = 1; i <= 3; i++) {
+            persistMedia("매체 %02d".formatted(i), "서울특별시", "강남구");
+        }
+        entityManager.flush();
+
+        MediaUnitListResponse response = service.getMediaUnits(
+                null, null, null, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 2), 100, 10
+        );
+
+        assertThat(response.mediaUnits()).isEmpty();
+        assertThat(response.hasMore()).isFalse();
+    }
+
+    @Test
     void getRegions_returnsSortedDistinctValuesFromActiveMediaOnly() {
         persistMedia("해운대 A", "부산광역시", "해운대구");
         persistMedia("강남 A", "서울특별시", "강남구");
