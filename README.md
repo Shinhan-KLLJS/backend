@@ -2,7 +2,7 @@
 
 # Loovi Backend
 
-### Vision AI 기반 디지털 옥외광고 성과 측정 플랫폼의 백엔드 서버
+### Vision AI 기반 디지털 옥외광고 성과 측정 플랫폼 백엔드 Repository
 
 [Frontend](https://github.com/Shinhan-KLLJS/frontend) · [AI / Vision](https://github.com/Shinhan-KLLJS/ai) · [Organization](https://github.com/Shinhan-KLLJS)
 
@@ -23,20 +23,11 @@ Loovi Backend는 광고대행사가 디지털 옥외광고의 성과를 데이�
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    C["Web Client"] -->|"REST API"| B["Loovi Backend\nSpring Boot"]
-    K["Kakao OAuth2"] --> B
-    V["Vision AI Device"] -->|"Vision Summary"| Q["Amazon SQS"]
-    Q --> B
-    B --> DB[("MySQL / RDS")]
-    B --> S3["Amazon S3\nCampaign creatives"]
-    B --> OCR["AWS Lambda\nBusiness-registration OCR"]
-    B --> CW["CloudWatch"]
-```
+<img width="4376" height="2764" alt="Loovi_다이어그램_최종본 drawio" src="https://github.com/user-attachments/assets/4626d6ba-6c49-49e2-a9c6-52d1e856c8ba" />
+
 
 <details>
-<summary><strong>배포 흐름 보기</strong></summary>
+<summary><strong>배포 흐름</strong></summary>
 
 <br />
 
