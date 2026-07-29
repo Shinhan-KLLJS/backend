@@ -4,10 +4,9 @@
 매체에 설치된 비전 디바이스가 SQS로 보내는 유동/노출/주목 인구 데이터를 받아 캠페인별
 홈 대시보드(깔대기 그래프, 시간대별 노출도, 시청시간, 성별·연령 통계 등)로 보여준다.
 
-- **Backend**: 이 저장소
-- **Frontend**: [Shinhan-KLLJS/frontend](https://github.com/Shinhan-KLLJS/frontend) ([배포](https://frontend-rouge-two-52.vercel.app))
+- **Backend**: [Shinhan-KLLJS/backend](https://github.com/Shinhan-KLLJS/backend)
+- **Frontend**: [Shinhan-KLLJS/frontend](https://github.com/Shinhan-KLLJS/frontend)
 - **AI/Vision**: [Shinhan-KLLJS/ai](https://github.com/Shinhan-KLLJS/ai)
-- **사업자등록증 OCR**: [Shinhan-KLLJS/biz-ocr](https://github.com/Shinhan-KLLJS/biz-ocr)
 
 <!-- TODO(팀): 프로젝트 소개/소속(해커톤·공모전 등) 문구를 원하는 톤으로 다듬어 주세요. -->
 
