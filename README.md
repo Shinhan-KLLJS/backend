@@ -25,6 +25,17 @@ Loovi Backend는 광고대행사가 디지털 옥외광고의 성과를 데이�
 
 <img width="4376" height="2764" alt="Loovi_다이어그램_최종본 drawio" src="https://github.com/user-attachments/assets/4626d6ba-6c49-49e2-a9c6-52d1e856c8ba" />
 
+### Vision data ingestion
+
+Loovi는 Vision AI 디바이스가 데이터를 **수집**하고, Amazon SQS에 메시지를 **Push**하면 서버가 큐를 **Polling / Pulling**하는 방식으로 설계했습니다.
+
+| Step | Flow | Description |
+| --- | --- | --- |
+| 1 | **Collect** | Vision AI 디바이스가 전광판 주변의 유동·노출·주목 데이터를 현장에서 분석합니다. |
+| 2 | **Push** | 분석 결과를 `Vision Summary` 메시지로 Amazon SQS에 전달합니다. |
+| 3 | **Pull** | 백엔드가 SQS를 주기적으로 폴링해 메시지를 가져오고, 검증·집계 후 MySQL에 저장합니다. |
+| 4 | **Serve** | 저장된 데이터를 대시보드와 리포트 API로 제공합니다. |
+
 
 <details>
 <summary><strong>배포 흐름</strong></summary>
@@ -45,14 +56,27 @@ flowchart LR
 
 ## Tech stack
 
-| Category | Technologies |
-| --- | --- |
-| Runtime | Java 21, Spring Boot 4.1 |
-| API | Spring Web, Validation, springdoc-openapi / Swagger UI |
-| Security | Spring Security, Kakao OAuth2, JWT Access Token, HttpOnly Refresh Cookie |
-| Data | Spring Data JPA, MySQL 8, H2, Flyway |
-| AWS | S3, SQS, Lambda, CloudWatch, EC2, ALB, RDS, SSM |
-| Delivery | Gradle, Docker, Docker Hub, GitHub Actions |
+### Backend
+
+![Java](https://img.shields.io/badge/Java_21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_4.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white)
+![Gradle](https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white)
+
+### Data & API
+
+![MySQL](https://img.shields.io/badge/MySQL_8-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![H2](https://img.shields.io/badge/H2-09476B?style=for-the-badge&logo=h2&logoColor=white)
+![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white)
+![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
+
+### Infrastructure & delivery
+
+![AWS](https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+
+> AWS S3, SQS, Lambda, CloudWatch, EC2, ALB, RDS, SSM을 사용합니다. 인증은 Kakao OAuth2, JWT Access Token, HttpOnly Refresh Cookie 기반으로 구성했습니다.
 
 ## Quick start
 
